@@ -713,23 +713,21 @@
             };
 
             const cryptoHelper = {
-                _key: null,
                 async getKey() {
-                    if (this._key) return this._key;
                     const keyName = 'cba_we_device_key';
                     let storedKey = localStorage.getItem(keyName);
                     if (storedKey) {
                         try {
                             const jwk = JSON.parse(storedKey);
-                            this._key = await crypto.subtle.importKey('jwk', jwk, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
-                            return this._key;
-                        } catch (e) { console.error("Failed to import key, generating a new one.", e); }
+                            return await crypto.subtle.importKey('jwk', jwk, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
+                        } catch (e) {
+                            console.error("Failed to import key, generating a new one.", e);
+                        }
                     }
                     const newKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
                     const jwk = await crypto.subtle.exportKey('jwk', newKey);
                     localStorage.setItem(keyName, JSON.stringify(jwk));
-                    this._key = newKey;
-                    return this._key;
+                    return newKey;
                 },
                 async encrypt(text) {
                     try {
@@ -751,7 +749,10 @@
                         const encryptedContent = combined.slice(12);
                         const decryptedContent = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, encryptedContent);
                         return new TextDecoder().decode(decryptedContent);
-                    } catch (e) { console.error("Decryption failed:", e); throw new Error("Decryption failed. Key might be incorrect or data corrupted."); }
+                    } catch (e) {
+                        console.error("Decryption failed:", e);
+                        throw new Error("Decryption failed. Key might be incorrect or data corrupted.");
+                    }
                 }
             };
 
@@ -1319,7 +1320,6 @@
                                 if (!jwk.kty || !jwk.k) throw new Error("Invalid key format");
 
                                 localStorage.setItem('cba_we_device_key', keyString);
-                                cryptoHelper._key = null;
                                 await cryptoHelper.getKey();
 
                                 Swal.fire({
