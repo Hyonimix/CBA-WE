@@ -13,7 +13,7 @@
 
     <title>CBA-Worker Edition</title>
     <link rel="icon"
-        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='15' y='5' width='70' height='90' rx='5' ry='5' fill='%238B5D33' stroke='%23663300' stroke-width='2'/%3E%3Crect x='22' y='12' width='56' height='75' fill='%23FFFFFF' stroke='%23000000' stroke-width='1'/%3E%3Ctext x='50' y='63' font-size='50' text-anchor='middle' fill='%23000000'%3E%E5%A7%9C%3C/text%3E%3C/svg%3E">
+        href="data:imargbavg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='15' y='5' width='70' height='90' rx='5' ry='5' fill='%238B5D33' stroke='%23663300' stroke-width='2'/%3E%3Crect x='22' y='12' width='56' height='75' fill='%23FFFFFF' stroke='%23000000' stroke-width='1'/%3E%3Ctext x='50' y='63' font-size='50' text-anchor='middle' fill='%23000000'%3E%E5%A7%9C%3C/text%3E%3C/svg%3E">
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -599,13 +599,6 @@
             <button id="restore-btn" class="btn btn-warning" title="復元" aria-label="復元">
                 <span class="icon-wrapper"><i class="bi bi-folder2-open"></i><span class="emoji-icon">📂</span></span>
             </button>
-            <button id="export-key-btn" class="btn btn-secondary" title="キーをエクスポート" aria-label="暗号化キーをエクスポート">
-                <span class="icon-wrapper"><i class="bi bi-key-fill"></i><span class="emoji-icon">🔑</span></span>
-            </button>
-            <button id="import-key-btn" class="btn btn-secondary" title="キーをインポート" aria-label="暗号化キーをインポート">
-                <span class="icon-wrapper"><i class="bi bi-box-arrow-in-down"></i><span
-                        class="emoji-icon">📥</span></span>
-            </button>
             <button id="toggle-autocopy-btn" class="btn btn-toggle" title="自動コピー On/Off" aria-label="自動コピー切り替え">
                 <span class="icon-wrapper"><i class="bi bi-clipboard-check"></i><span
                         class="emoji-icon">📋</span></span>
@@ -660,8 +653,6 @@
                 deleteAllBtn: document.getElementById('delete-all-btn'),
                 backupBtn: document.getElementById('backup-btn'),
                 restoreBtn: document.getElementById('restore-btn'),
-                exportKeyBtn: document.getElementById('export-key-btn'),
-                importKeyBtn: document.getElementById('import-key-btn'),
                 toggleAutocopyBtn: document.getElementById('toggle-autocopy-btn'),
                 toggleNewlineBtn: document.getElementById('toggle-newline-btn'),
                 postItContainer: document.getElementById('post-it-container'),
@@ -677,7 +668,7 @@
                 typingTimer: null,
                 isComposing: false,
                 pastedByUser: false,
-                undoableClearText: null,
+                undoableClearText: null, 
                 lastDeletedAll: null,
                 lastDeletedItem: null,
                 focusedPostItId: null,
@@ -709,6 +700,16 @@
                         } catch (e) {
                         }
                     }
+                },
+                downloadBlob(blob, filename) {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
                 }
             };
 
@@ -720,14 +721,14 @@
                         try {
                             const jwk = JSON.parse(storedKey);
                             return await crypto.subtle.importKey('jwk', jwk, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
-                        } catch (e) {
-                            console.error("Failed to import key, generating a new one.", e);
+                        } catch (e) { 
+                            console.error("Failed to import key, generating a new one.", e); 
                         }
                     }
                     const newKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
                     const jwk = await crypto.subtle.exportKey('jwk', newKey);
                     localStorage.setItem(keyName, JSON.stringify(jwk));
-                    return newKey;
+                    return newKey; 
                 },
                 async encrypt(text) {
                     try {
@@ -749,9 +750,9 @@
                         const encryptedContent = combined.slice(12);
                         const decryptedContent = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, encryptedContent);
                         return new TextDecoder().decode(decryptedContent);
-                    } catch (e) {
-                        console.error("Decryption failed:", e);
-                        throw new Error("Decryption failed. Key might be incorrect or data corrupted.");
+                    } catch (e) { 
+                        console.error("Decryption failed:", e); 
+                        throw new Error("Decryption failed. Key might be incorrect or data corrupted."); 
                     }
                 }
             };
@@ -1013,16 +1014,16 @@
                             undoCallback();
                             removeToast();
                         };
-
+                        
                         toastEl.addEventListener('mouseenter', () => clearTimeout(hideTimer));
                         toastEl.addEventListener('mouseleave', () => hideTimer = setTimeout(removeToast, 5000));
-
+                        
                         toastBody.appendChild(undoBtn);
                     }
 
                     toastEl.appendChild(toastBody);
                     dom.toastContainer.appendChild(toastEl);
-
+                    
                     requestAnimationFrame(() => toastEl.classList.add('show'));
 
                     hideTimer = setTimeout(removeToast, 5000);
@@ -1108,7 +1109,7 @@
                     const text = itemToDelete.text;
                     const truncatedText = text.length > 20 ? `${text.substring(0, 20)}...` : text;
                     ui.showToast(`"${truncatedText}"を削除しました`, () => handlers.undoDeletePostIt());
-
+                    
                     if (nextFocusElement) {
                         ui.setFocusToPostIt(parseInt(nextFocusElement.dataset.id));
                     } else {
@@ -1261,82 +1262,6 @@
                         }, /iPhone|Android/i.test(navigator.userAgent) ? 2500 : 500);
                     }
                     state.pastedByUser = false;
-                },
-
-                async exportKey() {
-                    const { value: confirmed } = await Swal.fire({
-                        title: '暗号化キーのエクスポート',
-                        html: 'これはあなたのデータを復号化するためのマスターキーです。' +
-                            '<br>このファイルを安全な場所に保管し、誰とも共有しないでください。' +
-                            '<span class="swal-key-warning">このキーが漏洩すると、あなたのバックアップデータが危険に晒されます。</span>',
-                        icon: 'warning',
-                        showCancelButton: true,
-                        confirmButtonText: '理解した上でエクスポート',
-                        cancelButtonText: 'キャンセル',
-                        focusCancel: true
-                    });
-
-                    if (confirmed) {
-                        const keyString = localStorage.getItem('cba_we_device_key');
-                        if (!keyString) {
-                            ui.showToast("エクスポートするキーが見つかりません。");
-                            return;
-                        }
-                        const blob = new Blob([keyString], { type: 'application/json' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `CBA-WE-KEY_${new Date().toISOString().split('T')[0]}.json`;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                        ui.showToast("暗号化キーがエクスポートされました。");
-                    }
-                },
-                async importKey() {
-                    const { value: file } = await Swal.fire({
-                        title: '暗号化キーのインポート',
-                        html: 'エクスポートしたキーファイル(.json)を選択してください。' +
-                            '<span class="swal-key-warning">警告: 新しいキーをインポートすると、このデバイスの既存のキーは上書きされます。現在のデータが読めなくなる可能性があります。</span>',
-                        input: 'file',
-                        inputAttributes: {
-                            'accept': 'application/json,.json',
-                            'aria-label': 'アップロードする暗号化キーファイル'
-                        },
-                        showCancelButton: true,
-                        confirmButtonText: 'インポート',
-                        cancelButtonText: 'キャンセル',
-                        focusCancel: true
-                    });
-
-                    if (file) {
-                        const reader = new FileReader();
-                        reader.onload = async (e) => {
-                            try {
-                                const keyString = e.target.result;
-                                const jwk = JSON.parse(keyString);
-
-                                if (!jwk.kty || !jwk.k) throw new Error("Invalid key format");
-
-                                localStorage.setItem('cba_we_device_key', keyString);
-                                await cryptoHelper.getKey();
-
-                                Swal.fire({
-                                    title: '成功',
-                                    text: '暗号化キーが正常にインポートされました。バックアップファイルからデータを復元してください。',
-                                    icon: 'success'
-                                });
-                            } catch (error) {
-                                Swal.fire({
-                                    title: '失敗',
-                                    text: '無効なキーファイルです。ファイルが破損していないか確認してください。',
-                                    icon: 'error'
-                                });
-                            }
-                        };
-                        reader.readAsText(file);
-                    }
                 }
             };
 
@@ -1358,11 +1283,11 @@
 
             dom.saveBtn.addEventListener('click', handlers.addPostIt);
             dom.deleteAllBtn.addEventListener('click', handlers.deleteAllPostIts);
-
+            
             dom.deleteBtn.addEventListener('click', () => {
                 const textToClear = dom.textInput.value;
                 if (textToClear) {
-                    state.undoableClearText = textToClear;
+                    state.undoableClearText = textToClear; 
                     const undoCallback = () => handlers.restoreClearedText(textToClear);
                     ui.showToast("クリアしました。", undoCallback);
                 }
@@ -1376,8 +1301,122 @@
                 }
             });
 
-            dom.exportKeyBtn.addEventListener('click', handlers.exportKey);
-            dom.importKeyBtn.addEventListener('click', handlers.importKey);
+            dom.backupBtn.addEventListener('click', async () => {
+                const logs = localStorage.getItem("cba_we_log");
+                const keyString = localStorage.getItem("cba_we_device_key");
+
+                if (!logs || !keyString) {
+                    return Swal.fire({ title: "情報", text: "バックアップするデータがありません。", icon: "info", customClass: { popup: 'swal2-popup' } });
+                }
+
+                const { value: confirmed } = await Swal.fire({
+                    title: 'バックアップの作成',
+                    html: 'データログ(.txt)と暗号化キー(.json)の2つのファイルを保存します。<br><span class="swal-key-warning">この2つのファイルは必ず一緒に保管してください。キーがないとデータを復元できません。</span>',
+                    icon: 'info',
+                    showCancelButton: true,
+                    confirmButtonText: 'バックアップ開始',
+                    cancelButtonText: 'キャンセル',
+                    focusCancel: true
+                });
+
+                if (confirmed) {
+                    const dateString = new Date().toISOString().replace(/[:.]/g, "-");
+                    
+                    const logBlob = new Blob([logs], { type: "text/plain;charset=utf-8" });
+                    helpers.downloadBlob(logBlob, `CBA_WE_Log_Backup_${dateString}.txt`);
+
+                    const keyBlob = new Blob([keyString], { type: 'application/json' });
+                    helpers.downloadBlob(keyBlob, `CBA_WE_Key_${dateString}.json`);
+                    
+                    api.addLog("LOG_BACKED_UP");
+                    ui.showToast("バックアップファイルが2つ保存されました。");
+                }
+            });
+
+            dom.restoreBtn.addEventListener('click', () => {
+                Swal.fire({
+                    title: 'バックアップから復元',
+                    html: '<b>バックアップログ(.txt)</b>と<b>暗号化キー(.json)</b>の2つのファイルを同時に選択してください。',
+                    input: 'file',
+                    inputAttributes: {
+                        'multiple': 'true',
+                        'accept': '.txt,.json',
+                    },
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: '復元',
+                    cancelButtonText: 'キャンセル',
+                    preConfirm: (files) => {
+                        if (files.length !== 2) {
+                            Swal.showValidationMessage('ファイル2つ（.txt と .json）を選択する必要があります。');
+                            return false;
+                        }
+                        const logFile = Array.from(files).find(f => f.name.endsWith('.txt'));
+                        const keyFile = Array.from(files).find(f => f.name.endsWith('.json'));
+                        if (!logFile || !keyFile) {
+                            Swal.showValidationMessage('.txt 形式のログファイルと .json 形式のキーファイルが両方必要です。');
+                            return false;
+                        }
+                        return { logFile, keyFile };
+                    }
+                }).then(async (result) => {
+                    if (result.isConfirmed) {
+                        const { logFile, keyFile } = result.value;
+
+                        try {
+                            const logContent = await logFile.text();
+                            const keyContent = await keyFile.text();
+                            
+                            const jwk = JSON.parse(keyContent);
+                            const restoreKey = await crypto.subtle.importKey('jwk', jwk, { name: 'AES-GCM' }, true, ['decrypt']);
+
+                            const decryptWithProvidedKey = async (base64String) => {
+                                const combined = new Uint8Array(atob(base64String).split('').map(c => c.charCodeAt(0)));
+                                const iv = combined.slice(0, 12);
+                                const encryptedContent = combined.slice(12);
+                                const decryptedContent = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, restoreKey, encryptedContent);
+                                return new TextDecoder().decode(decryptedContent);
+                            };
+                            
+                            const postItsMap = new Map();
+                            const lines = logContent.trim().split("\n");
+                            for (const line of lines) {
+                                const parts = line.split(" | ");
+                                if (parts.length < 3) continue;
+                                const action = parts[1];
+                                let data = JSON.parse(parts.slice(2).join(" | "));
+                                if (data && (action === "CREATED" || action === "UPDATED") && data.text) {
+                                    data.text = await decryptWithProvidedKey(data.text);
+                                }
+                                if (action === "CREATED") postItsMap.set(data.id, data);
+                                else if (action === "DELETED") postItsMap.delete(data);
+                                else if (action === "UPDATED") { if (postItsMap.has(data.id)) postItsMap.get(data.id).text = data.text; }
+                                else if (action === "DELETED_ALL") postItsMap.clear();
+                            }
+                            state.postIts = Array.from(postItsMap.values());
+                            await api.saveState();
+                            localStorage.setItem('cba_we_log', logContent);
+                            localStorage.setItem('cba_we_device_key', keyContent);
+
+                            ui.renderAllPostIts();
+                            dom.searchInput.value = '';
+                            ui.filterPostIts('');
+                            Swal.fire({ title: "成功!", text: "復元されました。", icon: "success", customClass: { popup: 'swal2-popup' } });
+                            helpers.triggerHapticFeedback('success');
+
+                        } catch (error) {
+                            console.error("Restore failed:", error);
+                            Swal.fire({
+                                title: "復元失敗",
+                                html: "ファイルの処理中にエラーが発生しました。<br><span class='swal-key-warning'>ログファイルとキーファイルが一致しているか、ファイルが破損していないか確認してください。</span>",
+                                icon: "error",
+                                customClass: { popup: 'swal2-popup' }
+                            });
+                            helpers.triggerHapticFeedback('error');
+                        }
+                    }
+                });
+            });
 
             dom.textInput.addEventListener('input', handlers.onTextInput);
             dom.textInput.addEventListener('paste', e => {
@@ -1533,94 +1572,6 @@
                 helpers.triggerHapticFeedback('light');
             });
 
-            dom.backupBtn.addEventListener('click', () => {
-                const logs = localStorage.getItem("cba_we_log");
-                if (!logs) return Swal.fire({ title: "情報", text: "バックアップするログデータがありません。", icon: "info", customClass: { popup: 'swal2-popup' } });
-                const blob = new Blob([logs], { type: "text/plain;charset=utf-8" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `CBA_WE_Log_Backup_${new Date().toISOString().replace(/[:.]/g, "-")}.txt`;
-                a.click();
-                URL.revokeObjectURL(url);
-                api.addLog("LOG_BACKED_UP");
-                ui.showToast("現在状況がバックアップされました。");
-            });
-
-            dom.restoreBtn.addEventListener('click', () => {
-                const input = document.createElement("input");
-                input.type = "file";
-                input.accept = ".txt";
-                input.onchange = e => {
-                    const file = e.target.files[0];
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = function (event) {
-                        const logContent = event.target.result;
-                        Swal.fire({
-                            title: "ログから最終状況を復元しますか？",
-                            html: "現在状況が置き換えられます。この操作は元に戻せません。<span class='swal-key-warning'>別のデバイスのバックアップを復元する場合は、先に「キーをインポート」を実行したことを確認してください。</span>",
-                            icon: "warning",
-                            showCancelButton: true,
-                            confirmButtonColor: "#3085d6",
-                            cancelButtonColor: "#d33",
-                            confirmButtonText: "はい、復元します",
-                            cancelButtonText: "キャンセル",
-                            customClass: { popup: 'swal2-popup' },
-                            focusCancel: true
-                        }).then(async result => {
-                            if (result.isConfirmed) {
-                                try {
-                                    const postItsMap = new Map();
-                                    const lines = logContent.trim().split("\n");
-                                    for (const line of lines) {
-                                        const parts = line.split(" | ");
-                                        if (parts.length < 3) continue;
-                                        const action = parts[1];
-                                        let data = JSON.parse(parts.slice(2).join(" | "));
-                                        if (data && (action === "CREATED" || action === "UPDATED") && data.text) {
-                                            data.text = await cryptoHelper.decrypt(data.text);
-                                        }
-                                        if (action === "CREATED") postItsMap.set(data.id, data);
-                                        else if (action === "DELETED") postItsMap.delete(data);
-                                        else if (action === "UPDATED") { if (postItsMap.has(data.id)) postItsMap.get(data.id).text = data.text; }
-                                        else if (action === "DELETED_ALL") postItsMap.clear();
-                                    }
-                                    state.postIts = Array.from(postItsMap.values());
-                                    await api.saveState();
-                                    await api.addLog("LOG_RESTORED", { fileName: file.name });
-                                    ui.renderAllPostIts();
-                                    dom.searchInput.value = '';
-                                    ui.filterPostIts('');
-                                    Swal.fire({ title: "成功!", text: "復元されました。", icon: "success", customClass: { popup: 'swal2-popup' } });
-                                    helpers.triggerHapticFeedback('success');
-                                } catch (error) {
-                                    console.error("Restore failed:", error);
-                                    let title = "復元失敗";
-                                    let html;
-
-                                    if (error instanceof SyntaxError) {
-                                        html = "無効なバックアップファイルです。ファイルが破損していないか、正しいファイルか確認してください。";
-                                    } else {
-                                        html = "バックアップファイルの復元に失敗しました。<br>このバックアップは作成されたPCでのみ使用できます。<br><span class='swal-key-warning'>別のデバイスから復元する場合は、先に正しい「キー」をインポートしたか確認してください。</span>";
-                                    }
-
-                                    Swal.fire({
-                                        title: title,
-                                        html: html,
-                                        icon: "error",
-                                        customClass: { popup: 'swal2-popup' }
-                                    });
-                                    helpers.triggerHapticFeedback('error');
-                                }
-                            }
-                        });
-                    };
-                    reader.readAsText(file);
-                };
-                input.click();
-            });
-
             dom.scrollToTopBtn.addEventListener('click', () => {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             });
@@ -1648,7 +1599,7 @@
                         handlers.restoreClearedText(state.undoableClearText);
                         state.undoableClearText = null;
                     }
-                    return;
+                    return; 
                 }
 
                 if (e.key === "Escape" && !state.isComposing) {
