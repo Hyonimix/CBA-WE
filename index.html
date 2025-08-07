@@ -1,0 +1,1710 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <meta name="theme-color" content="#2C2C2C" />
+    <link rel="manifest" href="manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+
+    <title>CBA-Worker Edition</title>
+    <link rel="icon"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='15' y='5' width='70' height='90' rx='5' ry='5' fill='%238B5D33' stroke='%23663300' stroke-width='2'/%3E%3Crect x='22' y='12' width='56' height='75' fill='%23FFFFFF' stroke='%23000000' stroke-width='1'/%3E%3Ctext x='50' y='63' font-size='50' text-anchor='middle' fill='%23000000'%3E%E5%A7%9C%3C/text%3E%3C/svg%3E">
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-color: #2C2C2C;
+            --surface-color: #424242;
+            --text-color: #ffffff;
+            --primary-color: #007bff;
+            --danger-color: #d33;
+            --info-color: #17a2b8;
+            --warning-color: #ffc107;
+            --border-color-default: skyblue;
+            --border-color-composing: orange;
+            --border-color-pasted: red;
+            --border-color-duplicate: red;
+            --border-color-copied: limegreen;
+            --focus-outline-color: #0099ff;
+        }
+
+        html {
+            overflow-x: hidden;
+        }
+
+        body {
+            width: 100vw;
+            overflow-x: hidden;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Noto Sans JP', sans-serif;
+            overscroll-behavior-y: contain;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            border: 2px solid transparent;
+            background-clip: padding-box;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .post-it {
+            width: 80%;
+            margin: 10px auto;
+            border-radius: 8px;
+            background-color: var(--surface-color);
+            color: var(--text-color);
+            padding: 10px 45px 10px 15px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out, outline 0.2s;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            touch-action: pan-y;
+            outline: 2px solid transparent;
+            outline-offset: 2px;
+        }
+
+        .post-it-content {
+            white-space: pre-wrap;
+            word-break: break-all;
+            display: -webkit-box;
+            line-clamp: 4;
+            -webkit-line-clamp: 4;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .post-it:hover,
+        .post-it.focused {
+            transform: scale(1.02);
+            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .post-it.focused {
+            outline-color: var(--focus-outline-color);
+        }
+
+        .post-it.swiping {
+            transition: none;
+        }
+
+        .post-it.returning {
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .post-it.deleting {
+            animation: fadeOutAndShrink 0.4s ease-out forwards;
+        }
+
+        @keyframes fadeOutAndShrink {
+            from {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            to {
+                opacity: 0;
+                transform: scale(0.5);
+                margin-top: -10px;
+                margin-bottom: -10px;
+                padding-top: 0;
+                padding-bottom: 0;
+            }
+        }
+
+        .post-it-more-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 11;
+            transition: all 0.2s;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .post-it:hover .post-it-more-btn,
+        .post-it.focused .post-it-more-btn {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .post-it-more-btn:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .post-it-controls {
+            position: absolute;
+            top: 44px;
+            right: 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            opacity: 0;
+            transform: scale(0.8) translateY(-10px);
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .post-it:has(.post-it-controls.visible) {
+            z-index: 20;
+        }
+
+        .post-it-controls.visible {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+            pointer-events: auto;
+        }
+
+        .post-it-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background-color: rgba(0, 0, 0, 0.6);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            border: 2px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .post-it-btn:hover {
+            transform: scale(1.15);
+        }
+
+        .post-it-btn.delete:hover {
+            background-color: rgba(255, 59, 48, 0.8);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .post-it-btn.edit:hover {
+            background-color: rgba(52, 199, 89, 0.8);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        #post-it-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #toast-container {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1050;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .custom-toast {
+            background-color: var(--surface-color);
+            color: var(--text-color);
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            white-space: nowrap;
+        }
+
+        .custom-toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .custom-toast-body .btn-undo {
+            margin-left: 15px;
+            border: 1px solid #fff;
+            background: transparent;
+            color: #fff;
+            padding: 2px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .custom-toast-body .btn-undo:hover {
+            background-color: #fff;
+            color: #000;
+        }
+
+        .btn {
+            margin: 5px;
+        }
+
+        .search-container {
+            position: relative;
+        }
+
+        #search-input::-webkit-search-cancel-button {
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        #search-input {
+            padding-right: 35px;
+        }
+
+        #search-input,
+        #text-input {
+            background-color: var(--surface-color);
+            color: var(--text-color);
+            border: 1px solid #555;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        #search-input::placeholder {
+            color: #aaa;
+        }
+
+        #search-input:focus,
+        #text-input:focus {
+            background-color: var(--surface-color);
+            color: var(--text-color);
+            border-color: var(--border-color-default);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2), 0 0 0 2px var(--focus-outline-color);
+            outline: none;
+        }
+
+        #search-clear-btn {
+            position: absolute;
+            top: 50%;
+            right: 10px;
+            transform: translateY(-50%) scale(0.5);
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: rgba(255, 255, 255, 0.5);
+            cursor: pointer;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease-in-out;
+        }
+
+        #search-clear-btn.visible {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(-50%) scale(1);
+        }
+
+        #search-clear-btn:hover {
+            color: rgba(255, 255, 255, 0.8);
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-toggle {
+            background-color: #5a5a5a;
+            border-color: #5a5a5a;
+            color: #ccc;
+        }
+
+        .btn-toggle.toggled {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            color: white;
+            box-shadow: 0 0 8px rgba(0, 123, 255, 0.5);
+        }
+
+        .text-center {
+            display: flex;
+            justify-content: center;
+            flex-wrap: nowrap;
+        }
+
+        .text-center .btn {
+            flex-basis: 0;
+            flex-grow: 1;
+            width: auto;
+            height: 3rem;
+        }
+
+        #delete-btn {
+            color: white;
+        }
+
+        #delete-btn:hover {
+            color: white;
+        }
+
+        #text-input {
+            height: auto;
+            resize: none;
+            overflow-y: hidden;
+            border: 2px solid var(--border-color-default);
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        #text-input.composing {
+            border-color: var(--border-color-composing);
+        }
+
+        #text-input.empty {
+            border-color: var(--border-color-default);
+        }
+
+        #text-input.pasted {
+            border-color: var(--border-color-pasted);
+        }
+
+        #text-input.duplicate {
+            border-color: var(--border-color-duplicate);
+        }
+
+        #text-input.copied {
+            border-color: var(--border-color-copied);
+        }
+
+        .cbassist-header {
+            background-color: #333;
+            color: #ffffff;
+            padding: 10px 15px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .cbassist-header>span {
+            font-size: 22px;
+            font-weight: 600;
+        }
+
+        .header-buttons-left {
+            display: flex;
+            gap: 8px;
+        }
+
+        .header-buttons-left .btn {
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            margin: 0;
+        }
+
+        .icon-wrapper .emoji-icon {
+            display: none;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .container {
+            animation: fadeIn 0.5s ease-in-out;
+            margin-bottom: 20px;
+        }
+
+        footer {
+            width: 100%;
+            margin: 0;
+            padding: 40px 15px 20px 15px;
+            text-align: center;
+            transition: opacity 0.5s ease-in-out;
+            pointer-events: none;
+        }
+
+        footer a {
+            pointer-events: auto;
+        }
+
+        footer.fade-out {
+            opacity: 0;
+        }
+
+        #scroll-to-top-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            background-color: rgba(0, 123, 255, 0.8);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 1040;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.3s, transform 0.3s;
+            pointer-events: none;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        #scroll-to-top-btn.visible {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        #scroll-to-top-btn:hover {
+            background-color: var(--primary-color);
+        }
+
+        .swal2-popup {
+            background-color: var(--bg-color) !important;
+            color: var(--text-color) !important;
+            border-radius: 12px !important;
+        }
+
+        .swal2-title {
+            color: var(--text-color) !important;
+        }
+
+        .swal2-html-container {
+            color: #ccc !important;
+            text-align: left !important;
+            line-height: 1.6 !important;
+        }
+
+        .swal2-html-container .swal-key-warning {
+            color: var(--warning-color);
+            font-weight: bold;
+            display: block;
+            margin-top: 10px;
+            background-color: rgba(255, 193, 7, 0.1);
+            padding: 8px;
+            border-radius: 4px;
+            border-left: 3px solid var(--warning-color);
+        }
+
+        .swal2-textarea,
+        .swal2-file {
+            background-color: var(--surface-color) !important;
+            color: var(--text-color) !important;
+            border: 1px solid #777 !important;
+        }
+
+        .swal2-confirm {
+            background-color: var(--primary-color) !important;
+        }
+
+        .swal2-cancel {
+            background-color: var(--danger-color) !important;
+        }
+
+        .swal2-deny.swal2-styled.btn-preserve {
+            background-color: var(--info-color) !important;
+            color: white !important;
+        }
+
+        @media (max-width: 1290px) {
+            .container {
+                width: 100%;
+                margin: 0 auto 20px;
+                padding-left: 15px;
+                padding-right: 15px;
+            }
+
+            .btn {
+                font-size: 14px;
+            }
+
+            .text-center .btn {
+                flex-grow: 1;
+                width: auto;
+            }
+
+            .cbassist-header>span {
+                font-size: 20px;
+            }
+
+            footer {
+                font-size: 12px;
+            }
+        }
+
+        @media (forced-colors: active) {
+            .btn {
+                border: 1px solid ButtonText;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="cbassist-header fade-in">
+        <div class="header-buttons-left">
+            <button id="backup-btn" class="btn btn-info" title="バックアップ" aria-label="バックアップ">
+                <span class="icon-wrapper"><i class="bi bi-save"></i><span class="emoji-icon">💾</span></span>
+            </button>
+            <button id="restore-btn" class="btn btn-warning" title="復元" aria-label="復元">
+                <span class="icon-wrapper"><i class="bi bi-folder2-open"></i><span class="emoji-icon">📂</span></span>
+            </button>
+            <button id="export-key-btn" class="btn btn-secondary" title="キーをエクスポート" aria-label="暗号化キーをエクスポート">
+                <span class="icon-wrapper"><i class="bi bi-key-fill"></i><span class="emoji-icon">🔑</span></span>
+            </button>
+            <button id="import-key-btn" class="btn btn-secondary" title="キーをインポート" aria-label="暗号化キーをインポート">
+                <span class="icon-wrapper"><i class="bi bi-box-arrow-in-down"></i><span
+                        class="emoji-icon">📥</span></span>
+            </button>
+            <button id="toggle-autocopy-btn" class="btn btn-toggle" title="自動コピー On/Off" aria-label="自動コピー切り替え">
+                <span class="icon-wrapper"><i class="bi bi-clipboard-check"></i><span
+                        class="emoji-icon">📋</span></span>
+            </button>
+            <button id="toggle-newline-btn" class="btn btn-toggle" title="Enterで改行 On/Off" aria-label="Enterで改行切り替え">
+                <span class="icon-wrapper"><i class="bi bi-text-paragraph"></i><span class="emoji-icon">¶</span></span>
+            </button>
+        </div>
+        <span>CBA-WE</span>
+    </div>
+
+    <div class="container mt-3">
+        <div class="search-container">
+            <input type="search" id="search-input" class="form-control mb-2" placeholder="ポスト内容検索...">
+            <span id="search-clear-btn"><i class="bi bi-x-circle-fill"></i></span>
+        </div>
+        <textarea id="text-input" class="form-control" rows="4" style="width: 100%;" aria-label="新規ポストの内容入力"></textarea>
+        <div class="text-center">
+            <button id="delete-btn" class="btn btn-primary mt-2">クリア</button>
+            <button id="save-btn" class="btn btn-success mt-2">保存</button>
+            <button id="delete-all-btn" class="btn btn-danger mt-2">全て削除</button>
+        </div>
+    </div>
+    <div id="post-it-container" role="list"></div>
+    <div id="toast-container"></div>
+    <footer class="container mt-4 text-muted">Copyright © 2025 D5 Kan. All Rights Reserved.<br><a
+            class="text-muted text-decoration-none font-weight-bold" href="https://github.com/Hyonimix/CBA-WE"
+            target="_blank">github.com/Hyonimix</a></footer>
+
+    <button id="scroll-to-top-btn" title="トップへ移動" aria-label="ページのトップへ移動">
+        <i class="bi bi-arrow-up-circle-fill"></i>
+    </button>
+
+    <script>
+        /**
+        * @license
+        * Copyright © 2025 D5 Kan (https://github.com/Hyonimix). All Rights Reserved.
+        *
+        * This software is the proprietary property of the copyright holder.
+        * Without the express prior written consent of the copyright holder, any part of this file
+        * may not be copied, modified, distributed, or sublicensed.
+        */
+        document.addEventListener('DOMContentLoaded', async () => {
+
+            const dom = {
+                header: document.querySelector('.cbassist-header'),
+                searchInput: document.getElementById('search-input'),
+                searchClearBtn: document.getElementById('search-clear-btn'),
+                textInput: document.getElementById('text-input'),
+                saveBtn: document.getElementById('save-btn'),
+                deleteBtn: document.getElementById('delete-btn'),
+                deleteAllBtn: document.getElementById('delete-all-btn'),
+                backupBtn: document.getElementById('backup-btn'),
+                restoreBtn: document.getElementById('restore-btn'),
+                exportKeyBtn: document.getElementById('export-key-btn'),
+                importKeyBtn: document.getElementById('import-key-btn'),
+                toggleAutocopyBtn: document.getElementById('toggle-autocopy-btn'),
+                toggleNewlineBtn: document.getElementById('toggle-newline-btn'),
+                postItContainer: document.getElementById('post-it-container'),
+                toastContainer: document.getElementById('toast-container'),
+                footer: document.querySelector('footer'),
+                scrollToTopBtn: document.getElementById('scroll-to-top-btn')
+            };
+
+            let state = {
+                postIts: [],
+                settings: { isAutoCopyEnabled: false, isNewlineEnabled: true, lastWarningSize: 0 },
+                lastCopiedText: '',
+                typingTimer: null,
+                isComposing: false,
+                pastedByUser: false,
+                undoableClearText: null,
+                lastDeletedAll: null,
+                lastDeletedItem: null,
+                focusedPostItId: null,
+                touch: {
+                    startX: 0,
+                    startY: 0,
+                    startTime: 0,
+                    isSwiping: false,
+                    isLongPress: false,
+                    longPressTimer: null,
+                    target: null,
+                    didMove: false
+                }
+            };
+
+            const MAX_POST_SIZE_BYTES = 96 * 1024;
+
+            const postItColors = ["#c94a4a", "#c24185", "#9b4ab3", "#6a51b8", "#4455b1", "#2b74b5", "#288599", "#2a9d8f", "#3a8f4c", "#679436", "#a39b37", "#e9c46a", "#f4a261", "#e76f51", "#7c6a60", "#6f7479", "#455a64"];
+
+            const helpers = {
+                triggerHapticFeedback(style = 'light') {
+                    if (navigator.vibrate) {
+                        try {
+                            if (style === 'light') navigator.vibrate(20);
+                            else if (style === 'medium') navigator.vibrate(40);
+                            else if (style === 'heavy') navigator.vibrate([100, 30, 100]);
+                            else if (style === 'success') navigator.vibrate([50, 50, 50]);
+                            else if (style === 'error') navigator.vibrate([100, 50, 100, 50, 100]);
+                        } catch (e) {
+                        }
+                    }
+                }
+            };
+
+            const cryptoHelper = {
+                _key: null,
+                async getKey() {
+                    if (this._key) return this._key;
+                    const keyName = 'cba_we_device_key';
+                    let storedKey = localStorage.getItem(keyName);
+                    if (storedKey) {
+                        try {
+                            const jwk = JSON.parse(storedKey);
+                            this._key = await crypto.subtle.importKey('jwk', jwk, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
+                            return this._key;
+                        } catch (e) { console.error("Failed to import key, generating a new one.", e); }
+                    }
+                    const newKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+                    const jwk = await crypto.subtle.exportKey('jwk', newKey);
+                    localStorage.setItem(keyName, JSON.stringify(jwk));
+                    this._key = newKey;
+                    return this._key;
+                },
+                async encrypt(text) {
+                    try {
+                        const key = await this.getKey();
+                        const iv = crypto.getRandomValues(new Uint8Array(12));
+                        const encodedText = new TextEncoder().encode(text);
+                        const encryptedContent = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, encodedText);
+                        const combined = new Uint8Array(iv.length + encryptedContent.byteLength);
+                        combined.set(iv, 0);
+                        combined.set(new Uint8Array(encryptedContent), iv.length);
+                        return btoa(String.fromCharCode.apply(null, combined));
+                    } catch (e) { console.error("Encryption failed:", e); return null; }
+                },
+                async decrypt(base64String) {
+                    try {
+                        const key = await this.getKey();
+                        const combined = new Uint8Array(atob(base64String).split('').map(c => c.charCodeAt(0)));
+                        const iv = combined.slice(0, 12);
+                        const encryptedContent = combined.slice(12);
+                        const decryptedContent = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, encryptedContent);
+                        return new TextDecoder().decode(decryptedContent);
+                    } catch (e) { console.error("Decryption failed:", e); throw new Error("Decryption failed. Key might be incorrect or data corrupted."); }
+                }
+            };
+
+            const api = {
+                async loadState() {
+                    try {
+                        const savedSettings = localStorage.getItem("cba_we_settings");
+                        if (savedSettings) state.settings = { ...state.settings, ...JSON.parse(savedSettings) };
+                        const encryptedState = localStorage.getItem("cba_we_currentState_encrypted");
+                        if (encryptedState) {
+                            const decryptedJSON = await cryptoHelper.decrypt(encryptedState);
+                            state.postIts = JSON.parse(decryptedJSON);
+                        }
+                    } catch (e) {
+                        console.error("Failed to load state from localStorage:", e);
+                        state.postIts = [];
+                        Swal.fire({
+                            title: "データの読み込みに失敗",
+                            html: "ローカルデータが破損しているか、暗号化キーが一致しない可能性があります。<br>バックアップから復元しますか？<br><span class='swal-key-warning'>別のデバイスのバックアップを復元する場合は、先に「キーをインポート」を実行してください。</span>",
+                            icon: "error",
+                            showCancelButton: true,
+                            confirmButtonText: "復元",
+                            cancelButtonText: "キャンセル",
+                            focusCancel: true
+                        }).then(result => { if (result.isConfirmed) { dom.restoreBtn.click(); } });
+                    }
+                },
+                async saveState() {
+                    try {
+                        localStorage.setItem("cba_we_settings", JSON.stringify(state.settings));
+                        const stateJSON = JSON.stringify(state.postIts);
+                        const encryptedState = await cryptoHelper.encrypt(stateJSON);
+                        if (encryptedState) localStorage.setItem("cba_we_currentState_encrypted", encryptedState);
+                    } catch (e) { console.error("Failed to save state to localStorage:", e); }
+                },
+                async addLog(action, data = null) {
+                    try {
+                        let logs = localStorage.getItem("cba_we_log") || "";
+                        let logData = data;
+                        if (data && (action === "CREATED" || action === "UPDATED")) {
+                            const encryptedText = await cryptoHelper.encrypt(data.text);
+                            logData = { ...data, text: encryptedText };
+                        }
+                        const logEntry = `${new Date().toISOString()} | ${action} | ${logData ? JSON.stringify(logData) : "null"}\n`;
+                        localStorage.setItem("cba_we_log", logs + logEntry);
+                    } catch (error) { console.error("Log recording failed:", error); }
+                },
+                async pruneOldLogs() {
+                    const MAX_LOG_SIZE = 1 * 1024 * 1024;
+                    const CRITICAL_LOG_SIZE = 1.5 * 1024 * 1024;
+                    const WARNING_INTERVAL = 512 * 1024;
+
+                    let logs = localStorage.getItem("cba_we_log");
+                    if (!logs) return;
+                    let logSize = new Blob([logs]).size;
+                    if (logSize <= MAX_LOG_SIZE) return;
+
+                    console.log(`ログサイズ(${logSize}バイト)が1MBを超えています。不要なログの削除を開始します。`);
+                    const activePostItIds = new Set(state.postIts.map(p => p.id));
+                    let lines = logs.trim().split("\n");
+                    const originalLineCount = lines.length;
+                    const essentialLines = [];
+                    const disposableLines = [];
+
+                    for (const line of lines) {
+                        try {
+                            const parts = line.split(" | ");
+                            const action = parts[1];
+                            const data = JSON.parse(parts.slice(2).join(" | "));
+                            let id = (action === "CREATED" || action === "UPDATED") ? data.id : ((action === "DELETED" || action === "UNDID_DELETE") ? data : null);
+                            if (id && activePostItIds.has(id)) {
+                                essentialLines.push(line);
+                            } else if (["DELETED_ALL", "UNDID_DELETE_ALL", "LOG_RESTORED", "LOG_BACKED_UP"].includes(action)) {
+                                essentialLines.push(line);
+                            } else {
+                                disposableLines.push(line);
+                            }
+                        } catch (e) { essentialLines.push(line); }
+                    }
+
+                    let newLines = [...essentialLines];
+                    while (new Blob([(newLines.concat(disposableLines)).join("\n")]).size > MAX_LOG_SIZE && disposableLines.length > 0) {
+                        disposableLines.shift();
+                    }
+                    newLines.push(...disposableLines);
+                    const newLogs = newLines.join("\n") + "\n";
+                    localStorage.setItem("cba_we_log", newLogs);
+                    const finalSize = new Blob([newLogs]).size;
+                    console.log(`${originalLineCount - newLines.length}件の不要なログを削除しました。最終的なログサイズ: ${finalSize}バイト`);
+
+                    if (finalSize > CRITICAL_LOG_SIZE && finalSize > (state.settings.lastWarningSize || 0) + WARNING_INTERVAL) {
+                        state.settings.lastWarningSize = finalSize;
+                        await this.saveState();
+
+                        Swal.fire({
+                            title: "警告：データ容量が非常に大きいです",
+                            html: `現在のログデータ容量(${Math.round(finalSize / 1024)}KB)が非常に大きくなっています。<br>データの安全性を確保するため、バックアップの実行を強く推奨します。`,
+                            icon: "warning",
+                            showConfirmButton: true,
+                            confirmButtonText: "フルバックアップ",
+                            showDenyButton: true,
+                            denyButtonText: "必須データ保存",
+                            denyButtonColor: 'var(--info-color)',
+                            showCancelButton: true,
+                            cancelButtonText: "後で",
+                            customClass: { popup: 'swal2-popup', denyButton: 'btn-preserve' },
+                            focusCancel: true
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                dom.backupBtn.click();
+                            } else if (result.isDenied) {
+                                handlers.backupEssentialData();
+                            }
+                        });
+                    }
+                },
+                copyToClipboard: (text) => {
+                    navigator.clipboard.writeText(text).then(() => {
+                        ui.showToast("テキストがコピーされました。");
+                        helpers.triggerHapticFeedback('light');
+                        state.lastCopiedText = text;
+                        ui.updateTextInputStyle("copied");
+                    }).catch(error => { console.error("Text copy failed: ", error); });
+                }
+            };
+
+            const ui = {
+                createPostItElement: (postItData) => {
+                    const postIt = document.createElement('div');
+                    postIt.className = 'post-it fade-in';
+                    postIt.dataset.id = postItData.id;
+                    postIt.style.backgroundColor = postItData.color;
+                    postIt.setAttribute('role', 'listitem');
+                    postIt.setAttribute('tabindex', '-1');
+                    postIt.setAttribute('aria-label', `ポスト: ${postItData.text}。クリックまたはEnterでコピー、スワイプまたはDeleteキーで削除。`);
+
+                    const contentSpan = document.createElement('span');
+                    contentSpan.className = 'post-it-content';
+                    contentSpan.textContent = postItData.text;
+                    postIt.appendChild(contentSpan);
+
+                    const moreBtn = document.createElement('button');
+                    moreBtn.className = 'post-it-more-btn';
+                    moreBtn.dataset.action = 'more';
+                    moreBtn.innerHTML = '<i class="bi bi-three-dots-vertical"></i>';
+                    moreBtn.setAttribute('aria-label', '追加オプション');
+                    moreBtn.setAttribute('tabindex', '-1');
+
+                    const controls = document.createElement('div');
+                    controls.className = 'post-it-controls';
+
+                    const editBtn = document.createElement('button');
+                    editBtn.className = 'post-it-btn edit';
+                    editBtn.dataset.action = 'edit';
+                    editBtn.innerHTML = '<i class="bi bi-pencil-fill"></i>';
+                    editBtn.setAttribute('aria-label', `"${postItData.text}"の内容を編集`);
+                    editBtn.setAttribute('tabindex', '-1');
+
+                    const closeBtn = document.createElement('button');
+                    closeBtn.className = 'post-it-btn delete';
+                    closeBtn.dataset.action = 'delete';
+                    closeBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
+                    closeBtn.setAttribute('aria-label', `"${postItData.text}"の内容を削除`);
+                    closeBtn.setAttribute('tabindex', '-1');
+
+                    controls.appendChild(editBtn);
+                    controls.appendChild(closeBtn);
+                    postIt.appendChild(moreBtn);
+                    postIt.appendChild(controls);
+
+                    return postIt;
+                },
+                renderAllPostIts: () => {
+                    dom.postItContainer.innerHTML = '';
+                    const fragment = document.createDocumentFragment();
+                    state.postIts.slice().reverse().forEach(postItData => {
+                        fragment.appendChild(ui.createPostItElement(postItData));
+                    });
+                    dom.postItContainer.appendChild(fragment);
+                    ui.filterPostIts(dom.searchInput.value);
+                },
+                addPostItToDOM: (postItData, index = 0) => {
+                    const postItElement = ui.createPostItElement(postItData);
+                    const referenceNode = dom.postItContainer.children[index] || null;
+                    dom.postItContainer.insertBefore(postItElement, referenceNode);
+                    return postItElement;
+                },
+                removePostItFromDOM: (id) => {
+                    const el = dom.postItContainer.querySelector(`.post-it[data-id="${id}"]`);
+                    if (el) {
+                        el.classList.add('deleting');
+                        el.inert = true;
+                        el.addEventListener('animationend', () => el.remove(), { once: true });
+                    }
+                },
+                updatePostItInDOM: (postItData) => {
+                    const el = dom.postItContainer.querySelector(`.post-it[data-id="${postItData.id}"]`);
+                    if (el) {
+                        const contentSpan = el.querySelector('.post-it-content');
+                        if (contentSpan) contentSpan.textContent = postItData.text;
+
+                        el.setAttribute('aria-label', `ポスト: ${postItData.text}。クリックまたはEnterでコピー、スワイプまたはDeleteキーで削除。`);
+                        el.querySelector('.edit').setAttribute('aria-label', `"${postItData.text}"の内容を編集`);
+                        el.querySelector('.delete').setAttribute('aria-label', `"${postItData.text}"の内容を削除`);
+                    }
+                },
+                filterPostIts: (searchTerm) => {
+                    const term = searchTerm.toLowerCase();
+                    let firstVisible = null;
+                    dom.postItContainer.querySelectorAll('.post-it').forEach(p => {
+                        const postText = p.querySelector('.post-it-content')?.textContent || '';
+                        const isVisible = postText.toLowerCase().includes(term);
+                        p.style.display = isVisible ? 'flex' : 'none';
+                        if (isVisible && !firstVisible) {
+                            firstVisible = p;
+                        }
+                    });
+                    if (state.focusedPostItId && document.querySelector(`.post-it[data-id="${state.focusedPostItId}"]`)?.style.display === 'none') {
+                        ui.setFocusToPostIt(firstVisible ? parseInt(firstVisible.dataset.id) : null);
+                    }
+                },
+                updateIcons: () => {
+                    const isOnline = navigator.onLine;
+                    document.querySelectorAll('.icon-wrapper').forEach(wrapper => {
+                        wrapper.querySelector('i').style.display = isOnline ? 'inline-block' : 'none';
+                        wrapper.querySelector('.emoji-icon').style.display = isOnline ? 'none' : 'inline-block';
+                    });
+                },
+                updateToggleButtons: () => {
+                    dom.toggleAutocopyBtn.classList.toggle('toggled', state.settings.isAutoCopyEnabled);
+                    dom.toggleAutocopyBtn.setAttribute('aria-pressed', state.settings.isAutoCopyEnabled);
+                    dom.toggleNewlineBtn.classList.toggle('toggled', state.settings.isNewlineEnabled);
+                    dom.toggleNewlineBtn.setAttribute('aria-pressed', state.settings.isNewlineEnabled);
+                },
+                showToast: (message, undoCallback = null) => {
+                    let hideTimer;
+                    const toastEl = document.createElement('div');
+                    toastEl.className = 'custom-toast';
+                    toastEl.setAttribute('role', 'alert');
+                    toastEl.setAttribute('aria-live', 'assertive');
+                    toastEl.setAttribute('aria-atomic', 'true');
+
+                    const toastBody = document.createElement('div');
+                    toastBody.className = 'custom-toast-body';
+                    toastBody.textContent = message;
+
+                    const removeToast = () => {
+                        toastEl.classList.remove('show');
+                        toastEl.addEventListener('transitionend', () => toastEl.remove(), { once: true });
+                    };
+
+                    if (undoCallback) {
+                        const undoBtn = document.createElement('button');
+                        undoBtn.className = 'btn-undo';
+                        undoBtn.textContent = '元に戻す';
+                        undoBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            undoCallback();
+                            removeToast();
+                        };
+
+                        toastEl.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+                        toastEl.addEventListener('mouseleave', () => hideTimer = setTimeout(removeToast, 5000));
+
+                        toastBody.appendChild(undoBtn);
+                    }
+
+                    toastEl.appendChild(toastBody);
+                    dom.toastContainer.appendChild(toastEl);
+
+                    requestAnimationFrame(() => toastEl.classList.add('show'));
+
+                    hideTimer = setTimeout(removeToast, 5000);
+
+                    toastEl.addEventListener('click', () => {
+                        clearTimeout(hideTimer);
+                        removeToast();
+                    });
+                },
+                updateTextInputStyle: (styleClass = '') => {
+                    dom.textInput.classList.remove('empty', 'pasted', 'duplicate', 'copied', 'composing');
+                    if (styleClass) dom.textInput.classList.add(styleClass);
+                },
+                autoResizeTextarea: () => {
+                    dom.textInput.style.height = 'auto';
+                    dom.textInput.style.height = `${dom.textInput.scrollHeight}px`;
+                },
+                setFocusToPostIt(id) {
+                    if (state.focusedPostItId) {
+                        document.querySelector(`.post-it[data-id="${state.focusedPostItId}"]`)?.classList.remove('focused');
+                    }
+                    state.focusedPostItId = id;
+                    if (id) {
+                        const el = document.querySelector(`.post-it[data-id="${id}"]`);
+                        if (el) {
+                            el.classList.add('focused');
+                            el.focus({ preventScroll: true });
+                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                    } else {
+                        dom.textInput.focus();
+                    }
+                }
+            };
+
+            const handlers = {
+                async addPostIt() {
+                    const text = dom.textInput.value.trim();
+                    if (!text) return;
+
+                    const textSize = new Blob([text]).size;
+                    if (textSize > MAX_POST_SIZE_BYTES) {
+                        return Swal.fire({
+                            title: "内容が大きすぎます",
+                            text: `ポストの内容は96KBを超えることはできません。現在のサイズ: ${Math.round(textSize / 1024)}KB`,
+                            icon: "error",
+                            customClass: { popup: 'swal2-popup' }
+                        });
+                    }
+
+                    if (state.settings.isAutoCopyEnabled && text !== state.lastCopiedText) {
+                        clearTimeout(state.typingTimer);
+                        api.copyToClipboard(text);
+                    }
+                    const newPostIt = { id: Date.now(), text: text, color: postItColors[Math.floor(Math.random() * postItColors.length)] };
+                    state.postIts.push(newPostIt);
+                    await api.saveState();
+                    await api.addLog("CREATED", newPostIt);
+                    const newElement = ui.addPostItToDOM(newPostIt);
+                    helpers.triggerHapticFeedback('success');
+                    dom.textInput.value = '';
+                    handlers.onTextInput();
+                    dom.textInput.focus();
+                },
+                async deletePostIt(id) {
+                    const index = state.postIts.findIndex(p => p.id === id);
+                    if (index === -1) return;
+
+                    const postItElements = Array.from(dom.postItContainer.querySelectorAll('.post-it:not([style*="display: none"])'));
+                    const currentIndexInDOM = postItElements.findIndex(el => parseInt(el.dataset.id) === id);
+                    let nextFocusElement = null;
+                    if (postItElements.length > 1) {
+                        nextFocusElement = postItElements[currentIndexInDOM + 1] || postItElements[currentIndexInDOM - 1];
+                    }
+
+                    const itemToDelete = state.postIts[index];
+                    state.lastDeletedItem = { item: itemToDelete, index: index };
+                    state.postIts.splice(index, 1);
+                    await api.saveState();
+                    await api.addLog("DELETED", id);
+                    ui.removePostItFromDOM(id);
+                    helpers.triggerHapticFeedback('medium');
+                    const text = itemToDelete.text;
+                    const truncatedText = text.length > 20 ? `${text.substring(0, 20)}...` : text;
+                    ui.showToast(`"${truncatedText}"を削除しました`, () => handlers.undoDeletePostIt());
+
+                    if (nextFocusElement) {
+                        ui.setFocusToPostIt(parseInt(nextFocusElement.dataset.id));
+                    } else {
+                        ui.setFocusToPostIt(null);
+                    }
+                },
+                async undoDeletePostIt() {
+                    if (state.lastDeletedItem) {
+                        const { item, index } = state.lastDeletedItem;
+                        state.postIts.splice(index, 0, item);
+                        await api.saveState();
+                        await api.addLog("UNDID_DELETE", item.id);
+                        const reversedIndex = state.postIts.length - 1 - index;
+                        const newElement = ui.addPostItToDOM(item, reversedIndex);
+                        ui.showToast("削除を取り消しました。");
+                        helpers.triggerHapticFeedback('light');
+                        ui.setFocusToPostIt(item.id);
+                        state.lastDeletedItem = null;
+                    }
+                },
+                restoreClearedText(textToRestore) {
+                    if (textToRestore) {
+                        dom.textInput.value = textToRestore;
+                        handlers.onTextInput();
+                        dom.textInput.focus();
+                    }
+                },
+                editPostIt(id) {
+                    const postItData = state.postIts.find(p => p.id === id);
+                    if (!postItData) return;
+                    Swal.fire({
+                        title: "ポストを編集",
+                        input: "textarea",
+                        inputValue: postItData.text,
+                        showCancelButton: true,
+                        confirmButtonText: "保存",
+                        cancelButtonText: "キャンセル",
+                        customClass: { popup: 'swal2-popup' },
+                        inputValidator: value => {
+                            if (!value) return "内容は空にできません！";
+                            const valueSize = new Blob([value]).size;
+                            if (valueSize > MAX_POST_SIZE_BYTES) {
+                                return `内容が大きすぎます (最大96KB, 現在 ${Math.round(valueSize / 1024)}KB)`;
+                            }
+                            return null;
+                        },
+                        didOpen: () => {
+                            const textarea = Swal.getInput();
+                            textarea.focus();
+                            textarea.select();
+                        }
+                    }).then(async result => {
+                        if (result.isConfirmed) {
+                            await handlers.updatePostIt(id, result.value);
+                            Swal.fire({
+                                title: "保存しました！",
+                                icon: "success",
+                                timer: 1500,
+                                showConfirmButton: false,
+                                customClass: { popup: 'swal2-popup' }
+                            });
+                        }
+                        ui.setFocusToPostIt(id);
+                    });
+                },
+                async updatePostIt(id, newText) {
+                    const postIt = state.postIts.find(p => p.id === id);
+                    if (postIt && postIt.text !== newText) {
+                        postIt.text = newText;
+                        await api.saveState();
+                        await api.addLog("UPDATED", { id, text: newText });
+                        ui.updatePostItInDOM(postIt);
+                        helpers.triggerHapticFeedback('light');
+                    }
+                },
+                async deleteAllPostIts() {
+                    Swal.fire({
+                        title: "本当に全てのポストを削除しますか？",
+                        text: "この操作は後程元に戻せません。",
+                        icon: "warning",
+                        showCancelButton: true,
+                        confirmButtonColor: "#d33",
+                        cancelButtonColor: "#3085d6",
+                        confirmButtonText: "削除",
+                        cancelButtonText: "キャンセル",
+                        customClass: { popup: 'swal2-popup' },
+                        focusCancel: true
+                    }).then(async result => {
+                        if (result.isConfirmed) {
+                            if (state.postIts.length > 0) {
+                                state.lastDeletedAll = [...state.postIts];
+                                state.postIts = [];
+                                await api.saveState();
+                                await api.addLog("DELETED_ALL");
+                                ui.renderAllPostIts();
+                                dom.searchInput.value = '';
+                                ui.showToast("全て削除しました。", handlers.undoDeleteAll);
+                                helpers.triggerHapticFeedback('heavy');
+                                ui.setFocusToPostIt(null);
+                            } else {
+                                ui.showToast("削除するアイテムがありません。");
+                            }
+                        }
+                    });
+                },
+                async undoDeleteAll() {
+                    if (state.lastDeletedAll) {
+                        state.postIts = state.lastDeletedAll;
+                        state.lastDeletedAll = null;
+                        await api.saveState();
+                        await api.addLog("UNDID_DELETE_ALL");
+                        ui.renderAllPostIts();
+                        ui.showToast("削除を取り消しました。");
+                        helpers.triggerHapticFeedback('light');
+                    }
+                },
+                async backupEssentialData() {
+                    const logPromises = state.postIts.map(async postIt => {
+                        const encryptedText = await cryptoHelper.encrypt(postIt.text);
+                        const logData = { ...postIt, text: encryptedText };
+                        return `${new Date(postIt.id).toISOString()} | CREATED | ${JSON.stringify(logData)}`;
+                    });
+
+                    const logLines = await Promise.all(logPromises);
+                    const snapshotLog = logLines.join("\n") + "\n";
+
+                    const blob = new Blob([snapshotLog], { type: "text/plain;charset=utf-8" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `CBA_WE_Snapshot_Backup_${new Date().toISOString().replace(/[:.]/g, "-")}.txt`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    ui.showToast("必須データがバックアップされました。");
+                },
+                onTextInput() {
+                    if (state.isComposing) return;
+                    const text = dom.textInput.value;
+                    let styleClass = '';
+                    if (state.isComposing) styleClass = 'composing';
+                    else if (text === '') styleClass = 'empty';
+                    else if (state.pastedByUser) styleClass = 'pasted';
+                    else if (text === state.lastCopiedText) styleClass = 'duplicate';
+                    ui.updateTextInputStyle(styleClass);
+                    ui.autoResizeTextarea();
+                    clearTimeout(state.typingTimer);
+                    if (state.settings.isAutoCopyEnabled && !state.pastedByUser && text) {
+                        state.typingTimer = setTimeout(() => {
+                            if (!state.isComposing) api.copyToClipboard(text);
+                        }, /iPhone|Android/i.test(navigator.userAgent) ? 2500 : 500);
+                    }
+                    state.pastedByUser = false;
+                },
+
+                async exportKey() {
+                    const { value: confirmed } = await Swal.fire({
+                        title: '暗号化キーのエクスポート',
+                        html: 'これはあなたのデータを復号化するためのマスターキーです。' +
+                            '<br>このファイルを安全な場所に保管し、誰とも共有しないでください。' +
+                            '<span class="swal-key-warning">このキーが漏洩すると、あなたのバックアップデータが危険に晒されます。</span>',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: '理解した上でエクスポート',
+                        cancelButtonText: 'キャンセル',
+                        focusCancel: true
+                    });
+
+                    if (confirmed) {
+                        const keyString = localStorage.getItem('cba_we_device_key');
+                        if (!keyString) {
+                            ui.showToast("エクスポートするキーが見つかりません。");
+                            return;
+                        }
+                        const blob = new Blob([keyString], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `CBA-WE-KEY_${new Date().toISOString().split('T')[0]}.json`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        ui.showToast("暗号化キーがエクスポートされました。");
+                    }
+                },
+                async importKey() {
+                    const { value: file } = await Swal.fire({
+                        title: '暗号化キーのインポート',
+                        html: 'エクスポートしたキーファイル(.json)を選択してください。' +
+                            '<span class="swal-key-warning">警告: 新しいキーをインポートすると、このデバイスの既存のキーは上書きされます。現在のデータが読めなくなる可能性があります。</span>',
+                        input: 'file',
+                        inputAttributes: {
+                            'accept': 'application/json,.json',
+                            'aria-label': 'アップロードする暗号化キーファイル'
+                        },
+                        showCancelButton: true,
+                        confirmButtonText: 'インポート',
+                        cancelButtonText: 'キャンセル',
+                        focusCancel: true
+                    });
+
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = async (e) => {
+                            try {
+                                const keyString = e.target.result;
+                                const jwk = JSON.parse(keyString);
+
+                                if (!jwk.kty || !jwk.k) throw new Error("Invalid key format");
+
+                                localStorage.setItem('cba_we_device_key', keyString);
+                                cryptoHelper._key = null;
+                                await cryptoHelper.getKey();
+
+                                Swal.fire({
+                                    title: '成功',
+                                    text: '暗号化キーが正常にインポートされました。バックアップファイルからデータを復元してください。',
+                                    icon: 'success'
+                                });
+                            } catch (error) {
+                                Swal.fire({
+                                    title: '失敗',
+                                    text: '無効なキーファイルです。ファイルが破損していないか確認してください。',
+                                    icon: 'error'
+                                });
+                            }
+                        };
+                        reader.readAsText(file);
+                    }
+                }
+            };
+
+            async function initialize() {
+                await api.loadState();
+                await api.pruneOldLogs();
+                ui.updateToggleButtons();
+                ui.renderAllPostIts();
+                ui.updateIcons();
+                dom.header.classList.add('visible');
+                if (!/iPhone|Android/i.test(navigator.userAgent)) dom.textInput.focus();
+                handlers.onTextInput();
+                const toastObserver = new MutationObserver((mutations) => {
+                    const hasToasts = dom.toastContainer.children.length > 0;
+                    dom.footer.classList.toggle('fade-out', hasToasts);
+                });
+                toastObserver.observe(dom.toastContainer, { childList: true });
+            };
+
+            dom.saveBtn.addEventListener('click', handlers.addPostIt);
+            dom.deleteAllBtn.addEventListener('click', handlers.deleteAllPostIts);
+
+            dom.deleteBtn.addEventListener('click', () => {
+                const textToClear = dom.textInput.value;
+                if (textToClear) {
+                    state.undoableClearText = textToClear;
+                    const undoCallback = () => handlers.restoreClearedText(textToClear);
+                    ui.showToast("クリアしました。", undoCallback);
+                }
+                clearTimeout(state.typingTimer);
+                state.lastCopiedText = '';
+                state.pastedByUser = false;
+                dom.textInput.value = '';
+                handlers.onTextInput();
+                if (!/iPhone|Android/i.test(navigator.userAgent)) {
+                    dom.textInput.focus();
+                }
+            });
+
+            dom.exportKeyBtn.addEventListener('click', handlers.exportKey);
+            dom.importKeyBtn.addEventListener('click', handlers.importKey);
+
+            dom.textInput.addEventListener('input', handlers.onTextInput);
+            dom.textInput.addEventListener('paste', e => {
+                state.pastedByUser = true;
+                clearTimeout(state.typingTimer);
+                state.lastCopiedText = '';
+                let pastedData = (e.clipboardData || window.clipboardData).getData('text');
+                if (!state.settings.isNewlineEnabled) pastedData = pastedData.replace(/[\r\n]/g, "");
+                e.preventDefault();
+                const start = dom.textInput.selectionStart, end = dom.textInput.selectionEnd;
+                dom.textInput.value = dom.textInput.value.substring(0, start) + pastedData + dom.textInput.value.substring(end);
+                handlers.onTextInput();
+                dom.textInput.selectionStart = dom.textInput.selectionEnd = start + pastedData.length;
+            });
+            dom.textInput.addEventListener('keydown', e => {
+                if (e.key === 'Enter' && !state.isComposing && !state.settings.isNewlineEnabled && !e.shiftKey) {
+                    e.preventDefault();
+                    handlers.addPostIt();
+                }
+
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    const postItElements = Array.from(dom.postItContainer.querySelectorAll('.post-it:not([style*="display: none"])'));
+                    if (postItElements.length > 0) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const targetElement = (e.key === 'ArrowDown') ? postItElements[0] : postItElements[postItElements.length - 1];
+                        ui.setFocusToPostIt(parseInt(targetElement.dataset.id));
+                    }
+                }
+            });
+            dom.textInput.addEventListener('compositionstart', () => { state.isComposing = true; ui.updateTextInputStyle('composing'); });
+            dom.textInput.addEventListener('compositionend', () => { state.isComposing = false; handlers.onTextInput(); });
+
+            dom.searchInput.addEventListener('input', () => {
+                dom.searchClearBtn.classList.toggle('visible', dom.searchInput.value.length > 0);
+                ui.filterPostIts(dom.searchInput.value);
+            });
+            dom.searchClearBtn.addEventListener('click', () => {
+                dom.searchInput.value = '';
+                dom.searchInput.dispatchEvent(new Event('input'));
+                dom.searchInput.focus();
+            });
+
+            dom.postItContainer.addEventListener('click', e => {
+                const target = e.target;
+                const postItElement = target.closest('.post-it');
+                if (!postItElement || state.touch.didMove || postItElement.classList.contains('deleting')) return;
+
+                const id = parseInt(postItElement.dataset.id, 10);
+                const action = target.closest('[data-action]')?.dataset.action;
+
+                ui.setFocusToPostIt(id);
+
+                if (action === 'more') {
+                    e.stopPropagation();
+                    const controls = postItElement.querySelector('.post-it-controls');
+                    const isVisible = controls.classList.contains('visible');
+                    document.querySelectorAll('.post-it-controls.visible').forEach(c => c.classList.remove('visible'));
+                    if (!isVisible) {
+                        controls.classList.add('visible');
+                    }
+                } else if (action === 'delete') {
+                    handlers.deletePostIt(id);
+                } else if (action === 'edit') {
+                    handlers.editPostIt(id);
+                } else {
+                    const postItText = postItElement.querySelector('.post-it-content')?.textContent || '';
+                    api.copyToClipboard(postItText);
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.post-it-controls') && !e.target.closest('.post-it-more-btn')) {
+                    document.querySelectorAll('.post-it-controls.visible').forEach(c => c.classList.remove('visible'));
+                }
+                if (!e.target.closest('#post-it-container')) {
+                    if (state.focusedPostItId && document.activeElement === document.querySelector(`.post-it[data-id="${state.focusedPostItId}"]`)) {
+                    } else if (state.focusedPostItId) {
+                        ui.setFocusToPostIt(null);
+                    }
+                }
+            });
+
+
+            dom.postItContainer.addEventListener('touchstart', e => {
+                const target = e.target.closest('.post-it');
+                if (!target || e.target.closest('.post-it-controls')) return;
+
+                state.touch.target = target;
+                state.touch.startX = e.touches[0].clientX;
+                state.touch.startY = e.touches[0].clientY;
+                state.touch.startTime = Date.now();
+                state.touch.isSwiping = false;
+                state.touch.isLongPress = false;
+                state.touch.didMove = false;
+                state.touch.longPressTimer = setTimeout(() => {
+                    state.touch.isLongPress = true;
+                    helpers.triggerHapticFeedback('medium');
+                    handlers.editPostIt(parseInt(target.dataset.id, 10));
+                }, 500);
+            }, { passive: true });
+
+            dom.postItContainer.addEventListener('touchmove', e => {
+                if (!state.touch.target) return;
+                const deltaX = e.touches[0].clientX - state.touch.startX;
+                const deltaY = e.touches[0].clientY - state.touch.startY;
+                if (!state.touch.isSwiping && Math.abs(deltaX) > 10) {
+                    state.touch.isSwiping = true;
+                    state.touch.target.classList.add('swiping');
+                }
+                if (state.touch.isSwiping) {
+                    clearTimeout(state.touch.longPressTimer);
+                    if (Math.abs(deltaX) > Math.abs(deltaY)) e.preventDefault();
+                    state.touch.target.style.transform = `translateX(${deltaX}px)`;
+                } else if (Math.abs(deltaY) > 10) {
+                    clearTimeout(state.touch.longPressTimer);
+                }
+                state.touch.didMove = true;
+            }, { passive: false });
+
+            dom.postItContainer.addEventListener('touchend', e => {
+                if (!state.touch.target) return;
+                clearTimeout(state.touch.longPressTimer);
+                const target = state.touch.target;
+                if (state.touch.isSwiping) {
+                    const deltaX = e.changedTouches[0].clientX - state.touch.startX;
+                    const threshold = target.offsetWidth * 0.5;
+                    if (Math.abs(deltaX) > threshold) {
+                        handlers.deletePostIt(parseInt(target.dataset.id, 10));
+                    } else {
+                        target.classList.add('returning');
+                        target.style.transform = 'translateX(0)';
+                        target.addEventListener('transitionend', () => target.classList.remove('returning'), { once: true });
+                    }
+                }
+                target.classList.remove('swiping');
+                Object.keys(state.touch).forEach(key => state.touch[key] = (typeof state.touch[key] === 'boolean') ? false : null);
+                setTimeout(() => { state.touch.didMove = false; }, 100);
+            });
+
+            dom.toggleAutocopyBtn.addEventListener('click', async () => {
+                state.settings.isAutoCopyEnabled = !state.settings.isAutoCopyEnabled;
+                await api.saveState();
+                ui.updateToggleButtons();
+                ui.showToast(state.settings.isAutoCopyEnabled ? "自動コピーが有効になりました。" : "自動コピーが無効になりました。");
+                helpers.triggerHapticFeedback('light');
+            });
+            dom.toggleNewlineBtn.addEventListener('click', async () => {
+                state.settings.isNewlineEnabled = !state.settings.isNewlineEnabled;
+                await api.saveState();
+                ui.updateToggleButtons();
+                ui.showToast(state.settings.isNewlineEnabled ? "Enterで改行が有効になりました。" : "Enterで改行が無効になりました。");
+                helpers.triggerHapticFeedback('light');
+            });
+
+            dom.backupBtn.addEventListener('click', () => {
+                const logs = localStorage.getItem("cba_we_log");
+                if (!logs) return Swal.fire({ title: "情報", text: "バックアップするログデータがありません。", icon: "info", customClass: { popup: 'swal2-popup' } });
+                const blob = new Blob([logs], { type: "text/plain;charset=utf-8" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `CBA_WE_Log_Backup_${new Date().toISOString().replace(/[:.]/g, "-")}.txt`;
+                a.click();
+                URL.revokeObjectURL(url);
+                api.addLog("LOG_BACKED_UP");
+                ui.showToast("現在状況がバックアップされました。");
+            });
+
+            dom.restoreBtn.addEventListener('click', () => {
+                const input = document.createElement("input");
+                input.type = "file";
+                input.accept = ".txt";
+                input.onchange = e => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = function (event) {
+                        const logContent = event.target.result;
+                        Swal.fire({
+                            title: "ログから最終状況を復元しますか？",
+                            html: "現在状況が置き換えられます。この操作は元に戻せません。<span class='swal-key-warning'>別のデバイスのバックアップを復元する場合は、先に「キーをインポート」を実行したことを確認してください。</span>",
+                            icon: "warning",
+                            showCancelButton: true,
+                            confirmButtonColor: "#3085d6",
+                            cancelButtonColor: "#d33",
+                            confirmButtonText: "はい、復元します",
+                            cancelButtonText: "キャンセル",
+                            customClass: { popup: 'swal2-popup' },
+                            focusCancel: true
+                        }).then(async result => {
+                            if (result.isConfirmed) {
+                                try {
+                                    const postItsMap = new Map();
+                                    const lines = logContent.trim().split("\n");
+                                    for (const line of lines) {
+                                        const parts = line.split(" | ");
+                                        if (parts.length < 3) continue;
+                                        const action = parts[1];
+                                        let data = JSON.parse(parts.slice(2).join(" | "));
+                                        if (data && (action === "CREATED" || action === "UPDATED") && data.text) {
+                                            data.text = await cryptoHelper.decrypt(data.text);
+                                        }
+                                        if (action === "CREATED") postItsMap.set(data.id, data);
+                                        else if (action === "DELETED") postItsMap.delete(data);
+                                        else if (action === "UPDATED") { if (postItsMap.has(data.id)) postItsMap.get(data.id).text = data.text; }
+                                        else if (action === "DELETED_ALL") postItsMap.clear();
+                                    }
+                                    state.postIts = Array.from(postItsMap.values());
+                                    await api.saveState();
+                                    await api.addLog("LOG_RESTORED", { fileName: file.name });
+                                    ui.renderAllPostIts();
+                                    dom.searchInput.value = '';
+                                    ui.filterPostIts('');
+                                    Swal.fire({ title: "成功!", text: "復元されました。", icon: "success", customClass: { popup: 'swal2-popup' } });
+                                    helpers.triggerHapticFeedback('success');
+                                } catch (error) {
+                                    console.error("Restore failed:", error);
+                                    let title = "復元失敗";
+                                    let html;
+
+                                    if (error instanceof SyntaxError) {
+                                        html = "無効なバックアップファイルです。ファイルが破損していないか、正しいファイルか確認してください。";
+                                    } else {
+                                        html = "バックアップファイルの復元に失敗しました。<br>このバックアップは作成されたPCでのみ使用できます。<br><span class='swal-key-warning'>別のデバイスから復元する場合は、先に正しい「キー」をインポートしたか確認してください。</span>";
+                                    }
+
+                                    Swal.fire({
+                                        title: title,
+                                        html: html,
+                                        icon: "error",
+                                        customClass: { popup: 'swal2-popup' }
+                                    });
+                                    helpers.triggerHapticFeedback('error');
+                                }
+                            }
+                        });
+                    };
+                    reader.readAsText(file);
+                };
+                input.click();
+            });
+
+            dom.scrollToTopBtn.addEventListener('click', () => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+
+            window.addEventListener('scroll', () => {
+                const inputContainer = document.querySelector('.container.mt-3');
+                if (!inputContainer) return;
+                const threshold = inputContainer.offsetTop + inputContainer.offsetHeight;
+                dom.scrollToTopBtn.classList.toggle('visible', window.scrollY > threshold);
+            }, { passive: true });
+
+            window.addEventListener('resize', () => {
+                ui.autoResizeTextarea();
+            });
+
+            document.addEventListener('keydown', e => {
+                if (Swal.isVisible()) return;
+
+                const activeElement = document.activeElement;
+                const isInputFocused = activeElement === dom.textInput || activeElement === dom.searchInput;
+
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+                    if (activeElement === dom.textInput && dom.textInput.value === '' && state.undoableClearText) {
+                        e.preventDefault();
+                        handlers.restoreClearedText(state.undoableClearText);
+                        state.undoableClearText = null;
+                    }
+                    return;
+                }
+
+                if (e.key === "Escape" && !state.isComposing) {
+                    if (state.focusedPostItId) {
+                        ui.setFocusToPostIt(null);
+                    } else if (dom.textInput.value !== "") {
+                        dom.deleteBtn.click();
+                    } else if (dom.searchInput.value !== "") {
+                        dom.searchClearBtn.click();
+                    }
+                }
+
+                if (!isInputFocused && state.focusedPostItId) {
+                    const postItElements = Array.from(dom.postItContainer.querySelectorAll('.post-it:not([style*="display: none"])'));
+                    if (postItElements.length === 0) return;
+
+                    const currentIndex = postItElements.findIndex(el => parseInt(el.dataset.id) === state.focusedPostItId);
+
+                    if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        const nextIndex = (currentIndex + 1) % postItElements.length;
+                        ui.setFocusToPostIt(parseInt(postItElements[nextIndex].dataset.id));
+                    } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        const prevIndex = (currentIndex - 1 + postItElements.length) % postItElements.length;
+                        ui.setFocusToPostIt(parseInt(postItElements[prevIndex].dataset.id));
+                    } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const postIt = state.postIts.find(p => p.id === state.focusedPostItId);
+                        if (postIt) api.copyToClipboard(postIt.text);
+                    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+                        e.preventDefault();
+                        handlers.deletePostIt(state.focusedPostItId);
+                    } else if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+                        e.preventDefault();
+                        handlers.editPostIt(state.focusedPostItId);
+                    }
+                }
+            });
+
+            initialize();
+
+            // Register Service Worker
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('/CBA-WE/service-worker.js')
+                        .then(registration => {
+                            console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                        })
+                        .catch(err => {
+                            console.log('ServiceWorker registration failed: ', err);
+                        });
+                });
+            }
+        });
+    </script>
+</body>
+
+</html>
