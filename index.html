@@ -13,7 +13,7 @@
 
     <title>CBA-Worker Edition</title>
     <link rel="icon"
-        href="data:imargbavg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='15' y='5' width='70' height='90' rx='5' ry='5' fill='%238B5D33' stroke='%23663300' stroke-width='2'/%3E%3Crect x='22' y='12' width='56' height='75' fill='%23FFFFFF' stroke='%23000000' stroke-width='1'/%3E%3Ctext x='50' y='63' font-size='50' text-anchor='middle' fill='%23000000'%3E%E5%A7%9C%3C/text%3E%3C/svg%3E">
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='15' y='5' width='70' height='90' rx='5' ry='5' fill='%238B5D33' stroke='%23663300' stroke-width='2'/%3E%3Crect x='22' y='12' width='56' height='75' fill='%23FFFFFF' stroke='%23000000' stroke-width='1'/%3E%3Ctext x='50' y='63' font-size='50' text-anchor='middle' fill='%23000000'%3E%E5%A7%9C%3C/text%3E%3C/svg%3E">
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -536,11 +536,16 @@
             border-left: 3px solid var(--warning-color);
         }
 
+        .swal2-input,
         .swal2-textarea,
         .swal2-file {
             background-color: var(--surface-color) !important;
             color: var(--text-color) !important;
             border: 1px solid #777 !important;
+        }
+
+        #swal-ack-checkbox {
+            margin-right: 5px;
         }
 
         .swal2-confirm {
@@ -612,7 +617,7 @@
 
     <div class="container mt-3">
         <div class="search-container">
-            <input type="search" id="search-input" class="form-control mb-2" placeholder="ポスト内容検索...">
+            <input type="search" id="search-input" class="form-control mb-2" placeholder="ポスト内容検索…">
             <span id="search-clear-btn"><i class="bi bi-x-circle-fill"></i></span>
         </div>
         <textarea id="text-input" class="form-control" rows="4" style="width: 100%;" aria-label="新規ポストの内容入力"></textarea>
@@ -668,7 +673,7 @@
                 typingTimer: null,
                 isComposing: false,
                 pastedByUser: false,
-                undoableClearText: null, 
+                undoableClearText: null,
                 lastDeletedAll: null,
                 lastDeletedItem: null,
                 focusedPostItId: null,
@@ -714,25 +719,16 @@
             };
 
             const cryptoHelper = {
-                async getKey() {
-                    const keyName = 'cba_we_device_key';
-                    let storedKey = localStorage.getItem(keyName);
-                    if (storedKey) {
-                        try {
-                            const jwk = JSON.parse(storedKey);
-                            return await crypto.subtle.importKey('jwk', jwk, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
-                        } catch (e) { 
-                            console.error("Failed to import key, generating a new one.", e); 
-                        }
-                    }
-                    const newKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
-                    const jwk = await crypto.subtle.exportKey('jwk', newKey);
-                    localStorage.setItem(keyName, JSON.stringify(jwk));
-                    return newKey; 
+                _fixedKeyInstance: null,
+                async getFixedKey() {
+                    if (this._fixedKeyInstance) return this._fixedKeyInstance;
+                    const jwk = { "kty": "oct", "k": "a7b2E6vK8zT9hG3qC1fJ0sR5uW8xP4oI7dF6kM9nL4g", "alg": "A256GCM", "ext": true };
+                    this._fixedKeyInstance = await crypto.subtle.importKey('jwk', jwk, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
+                    return this._fixedKeyInstance;
                 },
                 async encrypt(text) {
                     try {
-                        const key = await this.getKey();
+                        const key = await this.getFixedKey();
                         const iv = crypto.getRandomValues(new Uint8Array(12));
                         const encodedText = new TextEncoder().encode(text);
                         const encryptedContent = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, encodedText);
@@ -744,15 +740,68 @@
                 },
                 async decrypt(base64String) {
                     try {
-                        const key = await this.getKey();
+                        const key = await this.getFixedKey();
                         const combined = new Uint8Array(atob(base64String).split('').map(c => c.charCodeAt(0)));
                         const iv = combined.slice(0, 12);
                         const encryptedContent = combined.slice(12);
                         const decryptedContent = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, encryptedContent);
                         return new TextDecoder().decode(decryptedContent);
-                    } catch (e) { 
-                        console.error("Decryption failed:", e); 
-                        throw new Error("Decryption failed. Key might be incorrect or data corrupted."); 
+                    } catch (e) {
+                        console.error("Decryption failed:", e);
+                        throw new Error("Decryption failed. Data might be corrupted.");
+                    }
+                },
+                async deriveKeyFromPassword(password, salt) {
+                    const passwordBuffer = new TextEncoder().encode(password);
+                    const keyMaterial = await crypto.subtle.importKey(
+                        'raw',
+                        passwordBuffer,
+                        { name: 'PBKDF2' },
+                        false,
+                        ['deriveKey']
+                    );
+                    return await crypto.subtle.deriveKey(
+                        {
+                            "name": 'PBKDF2',
+                            "salt": salt,
+                            "iterations": 600000,
+                            "hash": 'SHA-256'
+                        },
+                        keyMaterial,
+                        { "name": 'AES-GCM', "length": 256 },
+                        true,
+                        ['encrypt', 'decrypt']
+                    );
+                },
+                async encryptWithPassword(text, password) {
+                    try {
+                        const salt = crypto.getRandomValues(new Uint8Array(16));
+                        const iv = crypto.getRandomValues(new Uint8Array(12));
+                        const key = await this.deriveKeyFromPassword(password, salt);
+                        const encodedText = new TextEncoder().encode(text);
+                        const encryptedContent = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, encodedText);
+                        const combined = new Uint8Array(salt.length + iv.length + encryptedContent.byteLength);
+                        combined.set(salt, 0);
+                        combined.set(iv, salt.length);
+                        combined.set(new Uint8Array(encryptedContent), salt.length + iv.length);
+                        return btoa(String.fromCharCode.apply(null, combined));
+                    } catch (e) {
+                        console.error("Password encryption failed:", e);
+                        return null;
+                    }
+                },
+                async decryptWithPassword(base64String, password) {
+                    try {
+                        const combined = new Uint8Array(atob(base64String).split('').map(c => c.charCodeAt(0)));
+                        const salt = combined.slice(0, 16);
+                        const iv = combined.slice(16, 16 + 12);
+                        const encryptedContent = combined.slice(16 + 12);
+                        const key = await this.deriveKeyFromPassword(password, salt);
+                        const decryptedContent = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, encryptedContent);
+                        return new TextDecoder().decode(decryptedContent);
+                    } catch (e) {
+                        console.error("Password decryption failed:", e);
+                        throw new Error("Decryption failed. Password might be incorrect or data corrupted.");
                     }
                 }
             };
@@ -772,7 +821,7 @@
                         state.postIts = [];
                         Swal.fire({
                             title: "データの読み込みに失敗",
-                            html: "ローカルデータが破損しているか、暗号化キーが一致しない可能性があります。<br>バックアップから復元しますか？<br><span class='swal-key-warning'>別のデバイスのバックアップを復元する場合は、先に「キーをインポート」を実行してください。</span>",
+                            html: "ローカルデータの読み込みに失敗しました。データが破損しているか、アプリのバージョンアップにより互換性がなくなった可能性があります。<br>バックアップファイルからデータを復元してください。",
                             icon: "error",
                             showCancelButton: true,
                             confirmButtonText: "復元",
@@ -803,71 +852,13 @@
                 },
                 async pruneOldLogs() {
                     const MAX_LOG_SIZE = 1 * 1024 * 1024;
-                    const CRITICAL_LOG_SIZE = 1.5 * 1024 * 1024;
-                    const WARNING_INTERVAL = 512 * 1024;
-
                     let logs = localStorage.getItem("cba_we_log");
                     if (!logs) return;
-                    let logSize = new Blob([logs]).size;
-                    if (logSize <= MAX_LOG_SIZE) return;
+                    if (new Blob([logs]).size <= MAX_LOG_SIZE) return;
 
-                    console.log(`ログサイズ(${logSize}バイト)が1MBを超えています。不要なログの削除を開始します。`);
-                    const activePostItIds = new Set(state.postIts.map(p => p.id));
-                    let lines = logs.trim().split("\n");
-                    const originalLineCount = lines.length;
-                    const essentialLines = [];
-                    const disposableLines = [];
-
-                    for (const line of lines) {
-                        try {
-                            const parts = line.split(" | ");
-                            const action = parts[1];
-                            const data = JSON.parse(parts.slice(2).join(" | "));
-                            let id = (action === "CREATED" || action === "UPDATED") ? data.id : ((action === "DELETED" || action === "UNDID_DELETE") ? data : null);
-                            if (id && activePostItIds.has(id)) {
-                                essentialLines.push(line);
-                            } else if (["DELETED_ALL", "UNDID_DELETE_ALL", "LOG_RESTORED", "LOG_BACKED_UP"].includes(action)) {
-                                essentialLines.push(line);
-                            } else {
-                                disposableLines.push(line);
-                            }
-                        } catch (e) { essentialLines.push(line); }
-                    }
-
-                    let newLines = [...essentialLines];
-                    while (new Blob([(newLines.concat(disposableLines)).join("\n")]).size > MAX_LOG_SIZE && disposableLines.length > 0) {
-                        disposableLines.shift();
-                    }
-                    newLines.push(...disposableLines);
-                    const newLogs = newLines.join("\n") + "\n";
-                    localStorage.setItem("cba_we_log", newLogs);
-                    const finalSize = new Blob([newLogs]).size;
-                    console.log(`${originalLineCount - newLines.length}件の不要なログを削除しました。最終的なログサイズ: ${finalSize}バイト`);
-
-                    if (finalSize > CRITICAL_LOG_SIZE && finalSize > (state.settings.lastWarningSize || 0) + WARNING_INTERVAL) {
-                        state.settings.lastWarningSize = finalSize;
-                        await this.saveState();
-
-                        Swal.fire({
-                            title: "警告：データ容量が非常に大きいです",
-                            html: `現在のログデータ容量(${Math.round(finalSize / 1024)}KB)が非常に大きくなっています。<br>データの安全性を確保するため、バックアップの実行を強く推奨します。`,
-                            icon: "warning",
-                            showConfirmButton: true,
-                            confirmButtonText: "フルバックアップ",
-                            showDenyButton: true,
-                            denyButtonText: "必須データ保存",
-                            denyButtonColor: 'var(--info-color)',
-                            showCancelButton: true,
-                            cancelButtonText: "後で",
-                            customClass: { popup: 'swal2-popup', denyButton: 'btn-preserve' },
-                            focusCancel: true
-                        }).then((result) => {
-                            if (result.isConfirmed) {
-                                dom.backupBtn.click();
-                            } else if (result.isDenied) {
-                                handlers.backupEssentialData();
-                            }
-                        });
+                    localStorage.removeItem('cba_we_log');
+                    for (const postIt of state.postIts) {
+                        await api.addLog("CREATED", postIt);
                     }
                 },
                 copyToClipboard: (text) => {
@@ -1014,16 +1005,16 @@
                             undoCallback();
                             removeToast();
                         };
-                        
+
                         toastEl.addEventListener('mouseenter', () => clearTimeout(hideTimer));
                         toastEl.addEventListener('mouseleave', () => hideTimer = setTimeout(removeToast, 5000));
-                        
+
                         toastBody.appendChild(undoBtn);
                     }
 
                     toastEl.appendChild(toastBody);
                     dom.toastContainer.appendChild(toastEl);
-                    
+
                     requestAnimationFrame(() => toastEl.classList.add('show'));
 
                     hideTimer = setTimeout(removeToast, 5000);
@@ -1109,7 +1100,7 @@
                     const text = itemToDelete.text;
                     const truncatedText = text.length > 20 ? `${text.substring(0, 20)}...` : text;
                     ui.showToast(`"${truncatedText}"を削除しました`, () => handlers.undoDeletePostIt());
-                    
+
                     if (nextFocusElement) {
                         ui.setFocusToPostIt(parseInt(nextFocusElement.dataset.id));
                     } else {
@@ -1226,25 +1217,6 @@
                         helpers.triggerHapticFeedback('light');
                     }
                 },
-                async backupEssentialData() {
-                    const logPromises = state.postIts.map(async postIt => {
-                        const encryptedText = await cryptoHelper.encrypt(postIt.text);
-                        const logData = { ...postIt, text: encryptedText };
-                        return `${new Date(postIt.id).toISOString()} | CREATED | ${JSON.stringify(logData)}`;
-                    });
-
-                    const logLines = await Promise.all(logPromises);
-                    const snapshotLog = logLines.join("\n") + "\n";
-
-                    const blob = new Blob([snapshotLog], { type: "text/plain;charset=utf-8" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `CBA_WE_Snapshot_Backup_${new Date().toISOString().replace(/[:.]/g, "-")}.txt`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                    ui.showToast("必須データがバックアップされました。");
-                },
                 onTextInput() {
                     if (state.isComposing) return;
                     const text = dom.textInput.value;
@@ -1265,6 +1237,19 @@
                 }
             };
 
+            const updateFooterVisibility = () => {
+                const hasToasts = dom.toastContainer.children.length > 0;
+                if (!hasToasts) {
+                    dom.footer.classList.remove('fade-out');
+                    return;
+                }
+                const footerRect = dom.footer.getBoundingClientRect();
+                const toastContainerRect = dom.toastContainer.getBoundingClientRect();
+                const isVisible = footerRect.top < window.innerHeight && footerRect.bottom > 0;
+                const isOverlapping = footerRect.bottom > toastContainerRect.top;
+                dom.footer.classList.toggle('fade-out', isVisible && isOverlapping);
+            };
+
             async function initialize() {
                 await api.loadState();
                 await api.pruneOldLogs();
@@ -1274,20 +1259,17 @@
                 dom.header.classList.add('visible');
                 if (!/iPhone|Android/i.test(navigator.userAgent)) dom.textInput.focus();
                 handlers.onTextInput();
-                const toastObserver = new MutationObserver((mutations) => {
-                    const hasToasts = dom.toastContainer.children.length > 0;
-                    dom.footer.classList.toggle('fade-out', hasToasts);
-                });
+                const toastObserver = new MutationObserver(updateFooterVisibility);
                 toastObserver.observe(dom.toastContainer, { childList: true });
             };
 
             dom.saveBtn.addEventListener('click', handlers.addPostIt);
             dom.deleteAllBtn.addEventListener('click', handlers.deleteAllPostIts);
-            
+
             dom.deleteBtn.addEventListener('click', () => {
                 const textToClear = dom.textInput.value;
                 if (textToClear) {
-                    state.undoableClearText = textToClear; 
+                    state.undoableClearText = textToClear;
                     const undoCallback = () => handlers.restoreClearedText(textToClear);
                     ui.showToast("クリアしました。", undoCallback);
                 }
@@ -1302,117 +1284,164 @@
             });
 
             dom.backupBtn.addEventListener('click', async () => {
-                const logs = localStorage.getItem("cba_we_log");
-                const keyString = localStorage.getItem("cba_we_device_key");
-
-                if (!logs || !keyString) {
+                if (state.postIts.length === 0) {
                     return Swal.fire({ title: "情報", text: "バックアップするデータがありません。", icon: "info", customClass: { popup: 'swal2-popup' } });
                 }
 
-                const { value: confirmed } = await Swal.fire({
-                    title: 'バックアップの作成',
-                    html: 'データログ(.txt)と暗号化キー(.json)の2つのファイルを保存します。<br><span class="swal-key-warning">この2つのファイルは必ず一緒に保管してください。キーがないとデータを復元できません。</span>',
-                    icon: 'info',
+                await Swal.fire({
+                    title: 'バックアップ用パスワードの設定',
+                    html: 'データを保護するための6桁の数字のパスワードを入力してください。<br><span class="swal-key-warning">このパスワードは復元時に必須です。忘れないように注意してください。</span>' +
+                        '<br><br><input type="checkbox" id="swal-ack-checkbox"><label for="swal-ack-checkbox"> パスワードは回復できないことを理解しました。</label>',
+                    input: 'password',
+                    inputPlaceholder: '6桁の数字',
+                    inputAttributes: {
+                        maxlength: 6,
+                        autocapitalize: 'off',
+                        autocorrect: 'off',
+                        inputmode: 'numeric',
+                        pattern: '\\d{6}'
+                    },
                     showCancelButton: true,
                     confirmButtonText: 'バックアップ開始',
                     cancelButtonText: 'キャンセル',
-                    focusCancel: true
+                    focusCancel: true,
+                    preConfirm: () => {
+                        const password = Swal.getInput().value;
+                        const isChecked = document.getElementById('swal-ack-checkbox').checked;
+                        if (!/^\d{6}$/.test(password)) {
+                            Swal.showValidationMessage('有効な6桁の数字を入力してください。');
+                            return false;
+                        }
+                        if (!isChecked) {
+                            Swal.showValidationMessage('パスワードを紛失した場合のリスクについて、チェックボックスをオンにして同意してください。');
+                            return false;
+                        }
+                        return password;
+                    }
+                }).then(async (result) => {
+                    if (result.isConfirmed) {
+                        const password = result.value;
+                        try {
+                            Swal.fire({
+                                title: 'セキュアなバックアップを作成中…',
+                                text: 'データ量とセキュリティレベルに応じて時間がかかる場合があります。',
+                                allowOutsideClick: false,
+                                didOpen: () => {
+                                    Swal.showLoading();
+                                }
+                            });
+
+                            const stateToSave = JSON.stringify(state.postIts);
+                            const encryptedState = await cryptoHelper.encryptWithPassword(stateToSave, password);
+
+                            if (!encryptedState) {
+                                throw new Error("Encryption failed.");
+                            }
+
+                            const dateString = new Date().toISOString().replace(/[:.]/g, "-");
+                            const backupBlob = new Blob([encryptedState], { type: "text/plain;charset=utf-8" });
+                            helpers.downloadBlob(backupBlob, `CBA_WE_Secure_Backup_${dateString}.cbawe`);
+
+                            await api.addLog("LOG_BACKED_UP");
+                            Swal.close();
+                            ui.showToast("バックアップファイルが保存されました。");
+
+                        } catch (error) {
+                            console.error("Backup failed:", error);
+                            Swal.fire({
+                                title: 'バックアップ失敗',
+                                text: 'バックアップファイルの作成中にエラーが発生しました。',
+                                icon: 'error'
+                            });
+                        }
+                    }
                 });
-
-                if (confirmed) {
-                    const dateString = new Date().toISOString().replace(/[:.]/g, "-");
-                    
-                    const logBlob = new Blob([logs], { type: "text/plain;charset=utf-8" });
-                    helpers.downloadBlob(logBlob, `CBA_WE_Log_Backup_${dateString}.txt`);
-
-                    const keyBlob = new Blob([keyString], { type: 'application/json' });
-                    helpers.downloadBlob(keyBlob, `CBA_WE_Key_${dateString}.json`);
-                    
-                    api.addLog("LOG_BACKED_UP");
-                    ui.showToast("バックアップファイルが2つ保存されました。");
-                }
             });
 
             dom.restoreBtn.addEventListener('click', () => {
                 Swal.fire({
                     title: 'バックアップから復元',
-                    html: '<b>バックアップログ(.txt)</b>と<b>暗号化キー(.json)</b>の2つのファイルを同時に選択してください。',
+                    html: '<b>セキュアバックアップファイル (.cbawe)</b> を選択してください。',
                     input: 'file',
                     inputAttributes: {
-                        'multiple': 'true',
-                        'accept': '.txt,.json',
+                        'accept': '.cbawe,text/plain',
                     },
                     icon: 'warning',
                     showCancelButton: true,
-                    confirmButtonText: '復元',
+                    confirmButtonText: '次へ',
                     cancelButtonText: 'キャンセル',
-                    preConfirm: (files) => {
-                        if (files.length !== 2) {
-                            Swal.showValidationMessage('ファイル2つ（.txt と .json）を選択する必要があります。');
+                    preConfirm: (file) => {
+                        if (!file) {
+                            Swal.showValidationMessage('ファイルを選択してください。');
                             return false;
                         }
-                        const logFile = Array.from(files).find(f => f.name.endsWith('.txt'));
-                        const keyFile = Array.from(files).find(f => f.name.endsWith('.json'));
-                        if (!logFile || !keyFile) {
-                            Swal.showValidationMessage('.txt 形式のログファイルと .json 形式のキーファイルが両方必要です。');
-                            return false;
-                        }
-                        return { logFile, keyFile };
+                        return file;
                     }
                 }).then(async (result) => {
                     if (result.isConfirmed) {
-                        const { logFile, keyFile } = result.value;
+                        const backupFile = result.value;
 
-                        try {
-                            const logContent = await logFile.text();
-                            const keyContent = await keyFile.text();
-                            
-                            const jwk = JSON.parse(keyContent);
-                            const restoreKey = await crypto.subtle.importKey('jwk', jwk, { name: 'AES-GCM' }, true, ['decrypt']);
-
-                            const decryptWithProvidedKey = async (base64String) => {
-                                const combined = new Uint8Array(atob(base64String).split('').map(c => c.charCodeAt(0)));
-                                const iv = combined.slice(0, 12);
-                                const encryptedContent = combined.slice(12);
-                                const decryptedContent = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, restoreKey, encryptedContent);
-                                return new TextDecoder().decode(decryptedContent);
-                            };
-                            
-                            const postItsMap = new Map();
-                            const lines = logContent.trim().split("\n");
-                            for (const line of lines) {
-                                const parts = line.split(" | ");
-                                if (parts.length < 3) continue;
-                                const action = parts[1];
-                                let data = JSON.parse(parts.slice(2).join(" | "));
-                                if (data && (action === "CREATED" || action === "UPDATED") && data.text) {
-                                    data.text = await decryptWithProvidedKey(data.text);
+                        const { value: password } = await Swal.fire({
+                            title: 'パスワードの入力',
+                            html: 'バックアップ作成時に設定した6桁の数字のパスワードを入力してください。',
+                            input: 'password',
+                            inputPlaceholder: '6桁の数字',
+                            inputAttributes: {
+                                maxlength: 6,
+                                autocapitalize: 'off',
+                                autocorrect: 'off',
+                                inputmode: 'numeric',
+                                pattern: '\\d{6}'
+                            },
+                            showCancelButton: true,
+                            confirmButtonText: '復元',
+                            cancelButtonText: 'キャンセル',
+                            allowOutsideClick: false,
+                            inputValidator: (value) => {
+                                if (!/^\d{6}$/.test(value)) {
+                                    return '有効な6桁の数字を入力してください。'
                                 }
-                                if (action === "CREATED") postItsMap.set(data.id, data);
-                                else if (action === "DELETED") postItsMap.delete(data);
-                                else if (action === "UPDATED") { if (postItsMap.has(data.id)) postItsMap.get(data.id).text = data.text; }
-                                else if (action === "DELETED_ALL") postItsMap.clear();
                             }
-                            state.postIts = Array.from(postItsMap.values());
-                            await api.saveState();
-                            localStorage.setItem('cba_we_log', logContent);
-                            localStorage.setItem('cba_we_device_key', keyContent);
+                        });
 
-                            ui.renderAllPostIts();
-                            dom.searchInput.value = '';
-                            ui.filterPostIts('');
-                            Swal.fire({ title: "成功!", text: "復元されました。", icon: "success", customClass: { popup: 'swal2-popup' } });
-                            helpers.triggerHapticFeedback('success');
+                        if (password) {
+                            try {
+                                Swal.fire({
+                                    title: '復元中…',
+                                    text: 'データを安全に復元しています。',
+                                    allowOutsideClick: false,
+                                    didOpen: () => { Swal.showLoading(); }
+                                });
 
-                        } catch (error) {
-                            console.error("Restore failed:", error);
-                            Swal.fire({
-                                title: "復元失敗",
-                                html: "ファイルの処理中にエラーが発生しました。<br><span class='swal-key-warning'>ログファイルとキーファイルが一致しているか、ファイルが破損していないか確認してください。</span>",
-                                icon: "error",
-                                customClass: { popup: 'swal2-popup' }
-                            });
-                            helpers.triggerHapticFeedback('error');
+                                const backupContent = await backupFile.text();
+                                const decryptedStateJSON = await cryptoHelper.decryptWithPassword(backupContent, password);
+                                const restoredPostIts = JSON.parse(decryptedStateJSON);
+
+                                state.postIts = restoredPostIts;
+
+                                localStorage.removeItem('cba_we_log');
+                                for (const postIt of state.postIts) {
+                                    await api.addLog("CREATED", postIt);
+                                }
+
+                                await api.saveState();
+
+                                ui.renderAllPostIts();
+                                dom.searchInput.value = '';
+                                ui.filterPostIts('');
+                                Swal.fire({ title: "成功!", text: "データが正常に復元されました。", icon: "success", customClass: { popup: 'swal2-popup' } });
+                                helpers.triggerHapticFeedback('success');
+
+                            } catch (error) {
+                                console.error("Restore failed:", error);
+                                Swal.fire({
+                                    title: "復元失敗",
+                                    html: "ファイルの処理中にエラーが発生しました。<br><span class='swal-key-warning'>パスワードが間違っているか、ファイルが破損している可能性があります。</span>",
+                                    icon: "error",
+                                    customClass: { popup: 'swal2-popup' }
+                                });
+                                helpers.triggerHapticFeedback('error');
+                            }
                         }
                     }
                 });
@@ -1581,10 +1610,12 @@
                 if (!inputContainer) return;
                 const threshold = inputContainer.offsetTop + inputContainer.offsetHeight;
                 dom.scrollToTopBtn.classList.toggle('visible', window.scrollY > threshold);
+                updateFooterVisibility();
             }, { passive: true });
 
             window.addEventListener('resize', () => {
                 ui.autoResizeTextarea();
+                updateFooterVisibility();
             });
 
             document.addEventListener('keydown', e => {
@@ -1599,7 +1630,7 @@
                         handlers.restoreClearedText(state.undoableClearText);
                         state.undoableClearText = null;
                     }
-                    return; 
+                    return;
                 }
 
                 if (e.key === "Escape" && !state.isComposing) {
@@ -1642,7 +1673,6 @@
 
             initialize();
 
-            // Register Service Worker
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
                     navigator.serviceWorker.register('/CBA-WE/service-worker.js')
