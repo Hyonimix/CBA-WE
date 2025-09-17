@@ -1465,7 +1465,8 @@
                     e.preventDefault();
                     handlers.addPostIt();
                 }
-
+                // 키보드 내비게이션 기능 삭제
+                /*
                 if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
                     const postItElements = Array.from(dom.postItContainer.querySelectorAll('.post-it:not([style*="display: none"])'));
                     if (postItElements.length > 0) {
@@ -1475,6 +1476,7 @@
                         ui.setFocusToPostIt(parseInt(targetElement.dataset.id));
                     }
                 }
+                */
             });
             dom.textInput.addEventListener('compositionstart', () => { state.isComposing = true; ui.updateTextInputStyle('composing'); });
             dom.textInput.addEventListener('compositionend', () => { state.isComposing = false; handlers.onTextInput(); });
