@@ -1146,7 +1146,7 @@
                     ui.removePostItFromDOM(id, direction);
                     helpers.triggerHapticFeedback('medium');
                     const text = itemToDelete.text;
-                    const truncatedText = text.length > 15 ? `${text.substring(0, 15)}...` : text;
+                    const truncatedText = text.length > 10 ? `${text.substring(0, 10)}...` : text;
                     ui.showToast(`"${truncatedText}"を削除しました`, () => handlers.undoDeletePostIt());
                 },
                 // 포스트잇 삭제 취소 처리
@@ -1500,6 +1500,54 @@
                 });
             });
 
+            // 텍스트 입력 영역 이벤트 리스너
+            dom.textInput.addEventListener('input', handlers.onTextInput);
+
+            dom.textInput.addEventListener('paste', e => {
+                state.pastedByUser = true;
+                clearTimeout(state.typingTimer);
+                state.lastCopiedText = '';
+                let pastedData = (e.clipboardData || window.clipboardData).getData('text');
+                if (!state.settings.isNewlineEnabled) {
+                    pastedData = pastedData.replace(/[\r\n]/g, "");
+                }
+                e.preventDefault();
+                const start = dom.textInput.selectionStart;
+                const end = dom.textInput.selectionEnd;
+                dom.textInput.value = dom.textInput.value.substring(0, start) + pastedData + dom.textInput.value.substring(end);
+                handlers.onTextInput();
+                dom.textInput.selectionStart = dom.textInput.selectionEnd = start + pastedData.length;
+            });
+
+            dom.textInput.addEventListener('keydown', e => {
+                if (e.key === 'Enter' && !state.isComposing && !state.settings.isNewlineEnabled && !e.shiftKey) {
+                    e.preventDefault();
+                    handlers.addPostIt();
+                }
+            });
+
+            dom.textInput.addEventListener('compositionstart', () => {
+                state.isComposing = true;
+                ui.updateTextInputStyle('composing');
+            });
+
+            dom.textInput.addEventListener('compositionend', () => {
+                state.isComposing = false;
+                handlers.onTextInput();
+            });
+
+            // 검색창 이벤트 리스너
+            dom.searchInput.addEventListener('input', () => {
+                dom.searchClearBtn.classList.toggle('visible', dom.searchInput.value.length > 0);
+                ui.filterPostIts(dom.searchInput.value);
+            });
+            dom.searchClearBtn.addEventListener('click', () => {
+                dom.searchInput.value = '';
+                dom.searchInput.dispatchEvent(new Event('input'));
+                dom.searchInput.focus();
+            });
+
+            // 포스트잇 컨테이너 이벤트 리스너
             dom.postItContainer.addEventListener('click', e => {
                 if (state.blockNextClick) {
                     e.stopPropagation();
