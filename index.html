@@ -33,7 +33,6 @@
             --border-color-pasted: red;
             --border-color-duplicate: red;
             --border-color-copied: limegreen;
-            --focus-outline-color: #0099ff;
         }
 
         html {
@@ -47,6 +46,20 @@
             color: var(--text-color);
             font-family: 'Noto Sans JP', sans-serif;
             overscroll-behavior-y: contain;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        #search-input,
+        #text-input,
+        .swal2-input,
+        .swal2-textarea {
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+            user-select: text;
         }
 
         ::-webkit-scrollbar {
@@ -79,11 +92,9 @@
             display: flex;
             align-items: center;
             cursor: pointer;
-            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out, outline 0.2s;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             touch-action: pan-y;
-            outline: 2px solid transparent;
-            outline-offset: 2px;
         }
 
         .post-it-content {
@@ -97,14 +108,15 @@
             text-overflow: ellipsis;
         }
 
-        .post-it:hover,
-        .post-it.focused {
+        .post-it:hover {
             transform: scale(1.02);
             box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
         }
 
-        .post-it.focused {
-            outline-color: var(--focus-outline-color);
+        .post-it.active {
+            transform: scale(1.02);
+            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
+            transition-duration: 0.1s;
         }
 
         .post-it.swiping {
@@ -155,8 +167,7 @@
             pointer-events: none;
         }
 
-        .post-it:hover .post-it-more-btn,
-        .post-it.focused .post-it-more-btn {
+        .post-it:hover .post-it-more-btn {
             opacity: 1;
             pointer-events: auto;
         }
@@ -234,12 +245,14 @@
             transform: translateX(-50%);
             z-index: 1050;
             display: flex;
-            flex-direction: column;
+            flex-direction: column-reverse;
             align-items: center;
             gap: 10px;
+            pointer-events: none;
         }
 
         .custom-toast {
+            pointer-events: auto;
             background-color: var(--surface-color);
             color: var(--text-color);
             padding: 10px 20px;
@@ -648,6 +661,7 @@
         */
         document.addEventListener('DOMContentLoaded', async () => {
 
+            // DOM 요소 관리
             const dom = {
                 header: document.querySelector('.cbassist-header'),
                 searchInput: document.getElementById('search-input'),
@@ -666,9 +680,10 @@
                 scrollToTopBtn: document.getElementById('scroll-to-top-btn')
             };
 
+            // 앱 상태 관리
             let state = {
                 postIts: [],
-                settings: { isAutoCopyEnabled: false, isNewlineEnabled: true, lastWarningSize: 0 },
+                settings: { isAutoCopyEnabled: false, isNewlineEnabled: true },
                 lastCopiedText: '',
                 typingTimer: null,
                 isComposing: false,
@@ -676,16 +691,16 @@
                 undoableClearText: null,
                 lastDeletedAll: null,
                 lastDeletedItem: null,
-                focusedPostItId: null,
-                touch: {
+                isModalOpen: false,
+                blockNextClick: false,
+                drag: {
+                    target: null,
                     startX: 0,
                     startY: 0,
-                    startTime: 0,
-                    isSwiping: false,
+                    isDragging: false,
                     isLongPress: false,
                     longPressTimer: null,
-                    target: null,
-                    didMove: false
+                    didMove: false,
                 }
             };
 
@@ -693,7 +708,9 @@
 
             const postItColors = ["#c94a4a", "#c24185", "#9b4ab3", "#6a51b8", "#4455b1", "#2b74b5", "#288599", "#2a9d8f", "#3a8f4c", "#679436", "#a39b37", "#e9c46a", "#f4a261", "#e76f51", "#7c6a60", "#6f7479", "#455a64"];
 
+            // 보조 기능 모음
             const helpers = {
+                // 햅틱 피드백 발생
                 triggerHapticFeedback(style = 'light') {
                     if (navigator.vibrate) {
                         try {
@@ -706,6 +723,7 @@
                         }
                     }
                 },
+                // 파일 다운로드
                 downloadBlob(blob, filename) {
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement("a");
@@ -718,14 +736,17 @@
                 }
             };
 
+            // 암호화/복호화 기능 모음
             const cryptoHelper = {
                 _fixedKeyInstance: null,
+                // 고정 암호화 키 생성/가져오기
                 async getFixedKey() {
                     if (this._fixedKeyInstance) return this._fixedKeyInstance;
                     const jwk = { "kty": "oct", "k": "a7b2E6vK8zT9hG3qC1fJ0sR5uW8xP4oI7dF6kM9nL4g", "alg": "A256GCM", "ext": true };
                     this._fixedKeyInstance = await crypto.subtle.importKey('jwk', jwk, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
                     return this._fixedKeyInstance;
                 },
+                // 기본 암호화
                 async encrypt(text) {
                     try {
                         const key = await this.getFixedKey();
@@ -738,6 +759,7 @@
                         return btoa(String.fromCharCode.apply(null, combined));
                     } catch (e) { console.error("Encryption failed:", e); return null; }
                 },
+                // 기본 복호화
                 async decrypt(base64String) {
                     try {
                         const key = await this.getFixedKey();
@@ -751,6 +773,7 @@
                         throw new Error("Decryption failed. Data might be corrupted.");
                     }
                 },
+                // 비밀번호 기반 키 생성
                 async deriveKeyFromPassword(password, salt) {
                     const passwordBuffer = new TextEncoder().encode(password);
                     const keyMaterial = await crypto.subtle.importKey(
@@ -773,6 +796,7 @@
                         ['encrypt', 'decrypt']
                     );
                 },
+                // 비밀번호로 암호화 (백업용)
                 async encryptWithPassword(text, password) {
                     try {
                         const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -790,6 +814,7 @@
                         return null;
                     }
                 },
+                // 비밀번호로 복호화 (복원용)
                 async decryptWithPassword(base64String, password) {
                     try {
                         const combined = new Uint8Array(atob(base64String).split('').map(c => c.charCodeAt(0)));
@@ -806,15 +831,25 @@
                 }
             };
 
+            // 데이터 관리 API
             const api = {
+                // 앱 상태 불러오기
                 async loadState() {
                     try {
                         const savedSettings = localStorage.getItem("cba_we_settings");
                         if (savedSettings) state.settings = { ...state.settings, ...JSON.parse(savedSettings) };
-                        const encryptedState = localStorage.getItem("cba_we_currentState_encrypted");
-                        if (encryptedState) {
-                            const decryptedJSON = await cryptoHelper.decrypt(encryptedState);
-                            state.postIts = JSON.parse(decryptedJSON);
+
+                        const emergencyBackup = localStorage.getItem("cba_we_emergency_backup");
+                        if (emergencyBackup) {
+                            console.log("비상 백업에서 데이터를 복구합니다.");
+                            state.postIts = JSON.parse(emergencyBackup);
+                            localStorage.removeItem("cba_we_emergency_backup");
+                        } else {
+                            const encryptedState = localStorage.getItem("cba_we_currentState_encrypted");
+                            if (encryptedState) {
+                                const decryptedJSON = await cryptoHelper.decrypt(encryptedState);
+                                state.postIts = JSON.parse(decryptedJSON);
+                            }
                         }
                     } catch (e) {
                         console.error("Failed to load state from localStorage:", e);
@@ -830,6 +865,7 @@
                         }).then(result => { if (result.isConfirmed) { dom.restoreBtn.click(); } });
                     }
                 },
+                // 앱 상태 저장하기
                 async saveState() {
                     try {
                         localStorage.setItem("cba_we_settings", JSON.stringify(state.settings));
@@ -838,6 +874,7 @@
                         if (encryptedState) localStorage.setItem("cba_we_currentState_encrypted", encryptedState);
                     } catch (e) { console.error("Failed to save state to localStorage:", e); }
                 },
+                // 활동 로그 추가
                 async addLog(action, data = null) {
                     try {
                         let logs = localStorage.getItem("cba_we_log") || "";
@@ -850,6 +887,7 @@
                         localStorage.setItem("cba_we_log", logs + logEntry);
                     } catch (error) { console.error("Log recording failed:", error); }
                 },
+                // 오래된 로그 정리
                 async pruneOldLogs() {
                     const MAX_LOG_SIZE = 1 * 1024 * 1024;
                     let logs = localStorage.getItem("cba_we_log");
@@ -861,7 +899,9 @@
                         await api.addLog("CREATED", postIt);
                     }
                 },
+                // 클립보드에 텍스트 복사
                 copyToClipboard: (text) => {
+                    if (state.isModalOpen) return;
                     navigator.clipboard.writeText(text).then(() => {
                         ui.showToast("テキストがコピーされました。");
                         helpers.triggerHapticFeedback('light');
@@ -871,15 +911,16 @@
                 }
             };
 
+            // UI 렌더링 및 조작
             const ui = {
+                // 포스트잇 DOM 요소 생성
                 createPostItElement: (postItData) => {
                     const postIt = document.createElement('div');
                     postIt.className = 'post-it fade-in';
                     postIt.dataset.id = postItData.id;
                     postIt.style.backgroundColor = postItData.color;
                     postIt.setAttribute('role', 'listitem');
-                    postIt.setAttribute('tabindex', '-1');
-                    postIt.setAttribute('aria-label', `ポスト: ${postItData.text}。クリックまたはEnterでコピー、スワイプまたはDeleteキーで削除。`);
+                    postIt.setAttribute('aria-label', `ポスト: ${postItData.text}。クリックでコピー、スワイプで削除。`);
 
                     const contentSpan = document.createElement('span');
                     contentSpan.className = 'post-it-content';
@@ -891,7 +932,6 @@
                     moreBtn.dataset.action = 'more';
                     moreBtn.innerHTML = '<i class="bi bi-three-dots-vertical"></i>';
                     moreBtn.setAttribute('aria-label', '追加オプション');
-                    moreBtn.setAttribute('tabindex', '-1');
 
                     const controls = document.createElement('div');
                     controls.className = 'post-it-controls';
@@ -901,14 +941,12 @@
                     editBtn.dataset.action = 'edit';
                     editBtn.innerHTML = '<i class="bi bi-pencil-fill"></i>';
                     editBtn.setAttribute('aria-label', `"${postItData.text}"の内容を編集`);
-                    editBtn.setAttribute('tabindex', '-1');
 
                     const closeBtn = document.createElement('button');
                     closeBtn.className = 'post-it-btn delete';
                     closeBtn.dataset.action = 'delete';
                     closeBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
                     closeBtn.setAttribute('aria-label', `"${postItData.text}"の内容を削除`);
-                    closeBtn.setAttribute('tabindex', '-1');
 
                     controls.appendChild(editBtn);
                     controls.appendChild(closeBtn);
@@ -917,6 +955,7 @@
 
                     return postIt;
                 },
+                // 모든 포스트잇 화면에 렌더링
                 renderAllPostIts: () => {
                     dom.postItContainer.innerHTML = '';
                     const fragment = document.createDocumentFragment();
@@ -926,46 +965,56 @@
                     dom.postItContainer.appendChild(fragment);
                     ui.filterPostIts(dom.searchInput.value);
                 },
+                // 포스트잇을 DOM에 추가
                 addPostItToDOM: (postItData, index = 0) => {
                     const postItElement = ui.createPostItElement(postItData);
                     const referenceNode = dom.postItContainer.children[index] || null;
                     dom.postItContainer.insertBefore(postItElement, referenceNode);
                     return postItElement;
                 },
-                removePostItFromDOM: (id) => {
+                // 포스트잇을 DOM에서 제거
+                removePostItFromDOM: (id, direction = 'fade') => {
                     const el = dom.postItContainer.querySelector(`.post-it[data-id="${id}"]`);
                     if (el) {
-                        el.classList.add('deleting');
                         el.inert = true;
-                        el.addEventListener('animationend', () => el.remove(), { once: true });
+                        const removeAction = () => el.remove();
+
+                        if (direction === 'left' || direction === 'right') {
+                            el.style.transition = 'transform 0.4s cubic-bezier(0.33, 1, 0.68, 1), opacity 0.3s ease-out';
+                            el.addEventListener('transitionend', removeAction, { once: true });
+
+                            requestAnimationFrame(() => {
+                                const rotation = direction === 'left' ? '-15deg' : '15deg';
+                                el.style.opacity = '0';
+                                el.style.transform = `translateX(${direction === 'left' ? '-120%' : '120%'}) rotate(${rotation}) scale(0.8)`;
+                            });
+                        } else {
+                            el.classList.add('deleting');
+                            el.addEventListener('animationend', removeAction, { once: true });
+                        }
                     }
                 },
+                // DOM의 포스트잇 내용 업데이트
                 updatePostItInDOM: (postItData) => {
                     const el = dom.postItContainer.querySelector(`.post-it[data-id="${postItData.id}"]`);
                     if (el) {
                         const contentSpan = el.querySelector('.post-it-content');
                         if (contentSpan) contentSpan.textContent = postItData.text;
-
-                        el.setAttribute('aria-label', `ポスト: ${postItData.text}。クリックまたはEnterでコピー、スワイプまたはDeleteキーで削除。`);
+                        el.setAttribute('aria-label', `ポスト: ${postItData.text}。クリックでコピー、スワイプで削除。`);
                         el.querySelector('.edit').setAttribute('aria-label', `"${postItData.text}"の内容を編集`);
                         el.querySelector('.delete').setAttribute('aria-label', `"${postItData.text}"の内容を削除`);
                     }
                 },
+                // 검색어로 포스트잇 필터링
                 filterPostIts: (searchTerm) => {
                     const term = searchTerm.toLowerCase();
-                    let firstVisible = null;
                     dom.postItContainer.querySelectorAll('.post-it').forEach(p => {
                         const postText = p.querySelector('.post-it-content')?.textContent || '';
                         const isVisible = postText.toLowerCase().includes(term);
                         p.style.display = isVisible ? 'flex' : 'none';
-                        if (isVisible && !firstVisible) {
-                            firstVisible = p;
-                        }
                     });
-                    if (state.focusedPostItId && document.querySelector(`.post-it[data-id="${state.focusedPostItId}"]`)?.style.display === 'none') {
-                        ui.setFocusToPostIt(firstVisible ? parseInt(firstVisible.dataset.id) : null);
-                    }
                 },
+                // 온라인/오프라인 상태 아이콘 업데이트
                 updateIcons: () => {
                     const isOnline = navigator.onLine;
                     document.querySelectorAll('.icon-wrapper').forEach(wrapper => {
@@ -973,28 +1022,50 @@
                         wrapper.querySelector('.emoji-icon').style.display = isOnline ? 'none' : 'inline-block';
                     });
                 },
+                // 토글 버튼 상태 업데이트
                 updateToggleButtons: () => {
                     dom.toggleAutocopyBtn.classList.toggle('toggled', state.settings.isAutoCopyEnabled);
                     dom.toggleAutocopyBtn.setAttribute('aria-pressed', state.settings.isAutoCopyEnabled);
                     dom.toggleNewlineBtn.classList.toggle('toggled', state.settings.isNewlineEnabled);
                     dom.toggleNewlineBtn.setAttribute('aria-pressed', state.settings.isNewlineEnabled);
                 },
+                // 토스트 메시지 표시
                 showToast: (message, undoCallback = null) => {
-                    let hideTimer;
+                    const DEFAULT_TIMEOUT = 5000;
+                    const MIN_TIMEOUT = 1500;
+                    const MAX_PROXIMITY = 250;
+                    const MIN_PROXIMITY = 50;
+
                     const toastEl = document.createElement('div');
                     toastEl.className = 'custom-toast';
+                    let hideTimer;
+
+                    const removeToast = () => {
+                        clearTimeout(hideTimer);
+                        toastEl.classList.remove('show');
+                        toastEl.addEventListener('transitionend', () => toastEl.remove(), { once: true });
+                    };
+
+                    const setDynamicTimeout = () => {
+                        clearTimeout(hideTimer);
+                        const containerRect = dom.toastContainer.getBoundingClientRect();
+                        const inputRect = dom.textInput.getBoundingClientRect();
+                        const distance = inputRect.top - containerRect.bottom;
+
+                        let timeout = DEFAULT_TIMEOUT;
+                        if (distance < MAX_PROXIMITY) {
+                            const factor = Math.max(0, (distance - MIN_PROXIMITY)) / (MAX_PROXIMITY - MIN_PROXIMITY);
+                            timeout = MIN_TIMEOUT + (DEFAULT_TIMEOUT - MIN_TIMEOUT) * factor;
+                        }
+                        hideTimer = setTimeout(removeToast, timeout);
+                    };
+
                     toastEl.setAttribute('role', 'alert');
                     toastEl.setAttribute('aria-live', 'assertive');
-                    toastEl.setAttribute('aria-atomic', 'true');
 
                     const toastBody = document.createElement('div');
                     toastBody.className = 'custom-toast-body';
                     toastBody.textContent = message;
-
-                    const removeToast = () => {
-                        toastEl.classList.remove('show');
-                        toastEl.addEventListener('transitionend', () => toastEl.remove(), { once: true });
-                    };
 
                     if (undoCallback) {
                         const undoBtn = document.createElement('button');
@@ -1005,52 +1076,36 @@
                             undoCallback();
                             removeToast();
                         };
-
                         toastEl.addEventListener('mouseenter', () => clearTimeout(hideTimer));
-                        toastEl.addEventListener('mouseleave', () => hideTimer = setTimeout(removeToast, 5000));
-
+                        toastEl.addEventListener('mouseleave', setDynamicTimeout);
                         toastBody.appendChild(undoBtn);
                     }
 
                     toastEl.appendChild(toastBody);
                     dom.toastContainer.appendChild(toastEl);
-
                     requestAnimationFrame(() => toastEl.classList.add('show'));
+                    setDynamicTimeout();
 
-                    hideTimer = setTimeout(removeToast, 5000);
-
-                    toastEl.addEventListener('click', () => {
-                        clearTimeout(hideTimer);
+                    toastEl.addEventListener('click', (e) => {
+                        if (e.target !== toastEl) return;
                         removeToast();
                     });
                 },
+                // 텍스트 입력창 스타일 업데이트
                 updateTextInputStyle: (styleClass = '') => {
                     dom.textInput.classList.remove('empty', 'pasted', 'duplicate', 'copied', 'composing');
                     if (styleClass) dom.textInput.classList.add(styleClass);
                 },
+                // 텍스트 입력창 높이 자동 조절
                 autoResizeTextarea: () => {
                     dom.textInput.style.height = 'auto';
                     dom.textInput.style.height = `${dom.textInput.scrollHeight}px`;
-                },
-                setFocusToPostIt(id) {
-                    if (state.focusedPostItId) {
-                        document.querySelector(`.post-it[data-id="${state.focusedPostItId}"]`)?.classList.remove('focused');
-                    }
-                    state.focusedPostItId = id;
-                    if (id) {
-                        const el = document.querySelector(`.post-it[data-id="${id}"]`);
-                        if (el) {
-                            el.classList.add('focused');
-                            el.focus({ preventScroll: true });
-                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }
-                    } else {
-                        dom.textInput.focus();
-                    }
                 }
             };
 
+            // 이벤트 핸들러 모음
             const handlers = {
+                // 새 포스트잇 추가 처리
                 async addPostIt() {
                     const text = dom.textInput.value.trim();
                     if (!text) return;
@@ -1073,40 +1128,28 @@
                     state.postIts.push(newPostIt);
                     await api.saveState();
                     await api.addLog("CREATED", newPostIt);
-                    const newElement = ui.addPostItToDOM(newPostIt);
+                    ui.addPostItToDOM(newPostIt);
                     helpers.triggerHapticFeedback('success');
                     dom.textInput.value = '';
                     handlers.onTextInput();
                     dom.textInput.focus();
                 },
-                async deletePostIt(id) {
+                // 포스트잇 삭제 처리
+                async deletePostIt(id, direction = 'fade') {
                     const index = state.postIts.findIndex(p => p.id === id);
                     if (index === -1) return;
-
-                    const postItElements = Array.from(dom.postItContainer.querySelectorAll('.post-it:not([style*="display: none"])'));
-                    const currentIndexInDOM = postItElements.findIndex(el => parseInt(el.dataset.id) === id);
-                    let nextFocusElement = null;
-                    if (postItElements.length > 1) {
-                        nextFocusElement = postItElements[currentIndexInDOM + 1] || postItElements[currentIndexInDOM - 1];
-                    }
-
                     const itemToDelete = state.postIts[index];
                     state.lastDeletedItem = { item: itemToDelete, index: index };
                     state.postIts.splice(index, 1);
                     await api.saveState();
                     await api.addLog("DELETED", id);
-                    ui.removePostItFromDOM(id);
+                    ui.removePostItFromDOM(id, direction);
                     helpers.triggerHapticFeedback('medium');
                     const text = itemToDelete.text;
-                    const truncatedText = text.length > 20 ? `${text.substring(0, 20)}...` : text;
+                    const truncatedText = text.length > 15 ? `${text.substring(0, 15)}...` : text;
                     ui.showToast(`"${truncatedText}"を削除しました`, () => handlers.undoDeletePostIt());
-
-                    if (nextFocusElement) {
-                        ui.setFocusToPostIt(parseInt(nextFocusElement.dataset.id));
-                    } else {
-                        ui.setFocusToPostIt(null);
-                    }
                 },
+                // 포스트잇 삭제 취소 처리
                 async undoDeletePostIt() {
                     if (state.lastDeletedItem) {
                         const { item, index } = state.lastDeletedItem;
@@ -1114,13 +1157,13 @@
                         await api.saveState();
                         await api.addLog("UNDID_DELETE", item.id);
                         const reversedIndex = state.postIts.length - 1 - index;
-                        const newElement = ui.addPostItToDOM(item, reversedIndex);
+                        ui.addPostItToDOM(item, reversedIndex);
                         ui.showToast("削除を取り消しました。");
                         helpers.triggerHapticFeedback('light');
-                        ui.setFocusToPostIt(item.id);
                         state.lastDeletedItem = null;
                     }
                 },
+                // 입력창 클리어 취소 처리
                 restoreClearedText(textToRestore) {
                     if (textToRestore) {
                         dom.textInput.value = textToRestore;
@@ -1128,9 +1171,14 @@
                         dom.textInput.focus();
                     }
                 },
+                // 포스트잇 수정 처리
                 editPostIt(id) {
                     const postItData = state.postIts.find(p => p.id === id);
                     if (!postItData) return;
+
+                    state.isModalOpen = true;
+                    if (document.activeElement) document.activeElement.blur();
+
                     Swal.fire({
                         title: "ポストを編集",
                         input: "textarea",
@@ -1147,10 +1195,11 @@
                             }
                             return null;
                         },
-                        didOpen: () => {
-                            const textarea = Swal.getInput();
-                            textarea.focus();
-                            textarea.select();
+                        didOpen: (modal) => {
+                            modal.querySelector('textarea').select();
+                        },
+                        didClose: () => {
+                            state.isModalOpen = false;
                         }
                     }).then(async result => {
                         if (result.isConfirmed) {
@@ -1163,9 +1212,9 @@
                                 customClass: { popup: 'swal2-popup' }
                             });
                         }
-                        ui.setFocusToPostIt(id);
                     });
                 },
+                // 포스트잇 내용 업데이트 처리
                 async updatePostIt(id, newText) {
                     const postIt = state.postIts.find(p => p.id === id);
                     if (postIt && postIt.text !== newText) {
@@ -1176,6 +1225,7 @@
                         helpers.triggerHapticFeedback('light');
                     }
                 },
+                // 모든 포스트잇 삭제 처리
                 async deleteAllPostIts() {
                     Swal.fire({
                         title: "本当に全てのポストを削除しますか？",
@@ -1199,13 +1249,13 @@
                                 dom.searchInput.value = '';
                                 ui.showToast("全て削除しました。", handlers.undoDeleteAll);
                                 helpers.triggerHapticFeedback('heavy');
-                                ui.setFocusToPostIt(null);
                             } else {
                                 ui.showToast("削除するアイテムがありません。");
                             }
                         }
                     });
                 },
+                // 전체 삭제 취소 처리
                 async undoDeleteAll() {
                     if (state.lastDeletedAll) {
                         state.postIts = state.lastDeletedAll;
@@ -1217,6 +1267,7 @@
                         helpers.triggerHapticFeedback('light');
                     }
                 },
+                // 텍스트 입력 시 처리
                 onTextInput() {
                     if (state.isComposing) return;
                     const text = dom.textInput.value;
@@ -1237,6 +1288,7 @@
                 }
             };
 
+            // 푸터 가시성 조절
             const updateFooterVisibility = () => {
                 const hasToasts = dom.toastContainer.children.length > 0;
                 if (!hasToasts) {
@@ -1250,6 +1302,7 @@
                 dom.footer.classList.toggle('fade-out', isVisible && isOverlapping);
             };
 
+            // 앱 초기화
             async function initialize() {
                 await api.loadState();
                 await api.pruneOldLogs();
@@ -1447,59 +1500,16 @@
                 });
             });
 
-            dom.textInput.addEventListener('input', handlers.onTextInput);
-            dom.textInput.addEventListener('paste', e => {
-                state.pastedByUser = true;
-                clearTimeout(state.typingTimer);
-                state.lastCopiedText = '';
-                let pastedData = (e.clipboardData || window.clipboardData).getData('text');
-                if (!state.settings.isNewlineEnabled) pastedData = pastedData.replace(/[\r\n]/g, "");
-                e.preventDefault();
-                const start = dom.textInput.selectionStart, end = dom.textInput.selectionEnd;
-                dom.textInput.value = dom.textInput.value.substring(0, start) + pastedData + dom.textInput.value.substring(end);
-                handlers.onTextInput();
-                dom.textInput.selectionStart = dom.textInput.selectionEnd = start + pastedData.length;
-            });
-            dom.textInput.addEventListener('keydown', e => {
-                if (e.key === 'Enter' && !state.isComposing && !state.settings.isNewlineEnabled && !e.shiftKey) {
-                    e.preventDefault();
-                    handlers.addPostIt();
-                }
-                // 키보드 내비게이션 기능 삭제
-                /*
-                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                    const postItElements = Array.from(dom.postItContainer.querySelectorAll('.post-it:not([style*="display: none"])'));
-                    if (postItElements.length > 0) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const targetElement = (e.key === 'ArrowDown') ? postItElements[0] : postItElements[postItElements.length - 1];
-                        ui.setFocusToPostIt(parseInt(targetElement.dataset.id));
-                    }
-                }
-                */
-            });
-            dom.textInput.addEventListener('compositionstart', () => { state.isComposing = true; ui.updateTextInputStyle('composing'); });
-            dom.textInput.addEventListener('compositionend', () => { state.isComposing = false; handlers.onTextInput(); });
-
-            dom.searchInput.addEventListener('input', () => {
-                dom.searchClearBtn.classList.toggle('visible', dom.searchInput.value.length > 0);
-                ui.filterPostIts(dom.searchInput.value);
-            });
-            dom.searchClearBtn.addEventListener('click', () => {
-                dom.searchInput.value = '';
-                dom.searchInput.dispatchEvent(new Event('input'));
-                dom.searchInput.focus();
-            });
-
             dom.postItContainer.addEventListener('click', e => {
-                const target = e.target;
-                const postItElement = target.closest('.post-it');
-                if (!postItElement || state.touch.didMove || postItElement.classList.contains('deleting')) return;
-
+                if (state.blockNextClick) {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    return;
+                };
+                const postItElement = e.target.closest('.post-it');
+                if (!postItElement || state.drag.didMove || state.isModalOpen) return;
                 const id = parseInt(postItElement.dataset.id, 10);
-                const action = target.closest('[data-action]')?.dataset.action;
-
-                ui.setFocusToPostIt(id);
+                const action = e.target.closest('[data-action]')?.dataset.action;
 
                 if (action === 'more') {
                     e.stopPropagation();
@@ -1523,69 +1533,120 @@
                 if (!e.target.closest('.post-it-controls') && !e.target.closest('.post-it-more-btn')) {
                     document.querySelectorAll('.post-it-controls.visible').forEach(c => c.classList.remove('visible'));
                 }
-                if (!e.target.closest('#post-it-container')) {
-                    if (state.focusedPostItId && document.activeElement === document.querySelector(`.post-it[data-id="${state.focusedPostItId}"]`)) {
-                    } else if (state.focusedPostItId) {
-                        ui.setFocusToPostIt(null);
-                    }
-                }
             });
 
+            function startDrag(e, target, clientX, clientY) {
+                if (e.button && e.button !== 0) return;
+                if (!target || e.target.closest('.post-it-controls, .post-it-more-btn') || state.isModalOpen) return;
+
+                state.drag.target = target;
+                state.drag.startX = clientX;
+                state.drag.startY = clientY;
+                state.drag.isDragging = false;
+                state.drag.isLongPress = false;
+                state.drag.didMove = false;
+
+                target.classList.add('active');
+
+                state.drag.longPressTimer = setTimeout(() => {
+                    if (!state.drag.didMove) {
+                        state.drag.isLongPress = true;
+                        helpers.triggerHapticFeedback('medium');
+                        handlers.editPostIt(parseInt(target.dataset.id, 10));
+                        resetDragState();
+                    }
+                }, 500);
+            }
+
+            function dragMove(e, clientX, clientY) {
+                if (!state.drag.target) return;
+
+                const deltaX = clientX - state.drag.startX;
+                const deltaY = clientY - state.drag.startY;
+
+                if (!state.drag.didMove && (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5)) {
+                    state.drag.didMove = true;
+                    clearTimeout(state.drag.longPressTimer);
+                }
+
+                if (state.drag.didMove && Math.abs(deltaX) > Math.abs(deltaY)) {
+                    if (!state.drag.isDragging) {
+                        state.drag.isDragging = true;
+                        state.drag.target.classList.add('swiping');
+                    }
+                    if (e.cancelable) e.preventDefault();
+                    state.drag.target.style.transform = `translateX(${deltaX}px) scale(1.02)`;
+                }
+            }
+
+            function endDrag(clientX) {
+                if (!state.drag.target) return;
+
+                const target = state.drag.target;
+                clearTimeout(state.drag.longPressTimer);
+
+                if (state.drag.isDragging) {
+                    const deltaX = clientX - state.drag.startX;
+                    const threshold = target.offsetWidth * 0.4;
+
+                    if (Math.abs(deltaX) > threshold) {
+                        const direction = deltaX > 0 ? 'right' : 'left';
+                        handlers.deletePostIt(parseInt(target.dataset.id, 10), direction);
+                    } else {
+                        target.classList.add('returning');
+                        target.style.transform = 'translateX(0) scale(1)';
+                        target.addEventListener('transitionend', () => {
+                            target.classList.remove('returning');
+                            target.style.transform = '';
+                        }, { once: true });
+                    }
+                } else if (state.drag.didMove) {
+                }
+
+                if (state.drag.didMove) {
+                    state.blockNextClick = true;
+                    setTimeout(() => { state.blockNextClick = false; }, 100);
+                }
+
+                resetDragState();
+            }
+
+            function resetDragState() {
+                if (state.drag.target) {
+                    state.drag.target.classList.remove('swiping', 'active');
+                }
+                state.drag = { target: null, startX: 0, startY: 0, isDragging: false, isLongPress: false, longPressTimer: null, didMove: false };
+            }
 
             dom.postItContainer.addEventListener('touchstart', e => {
-                const target = e.target.closest('.post-it');
-                if (!target || e.target.closest('.post-it-controls')) return;
-
-                state.touch.target = target;
-                state.touch.startX = e.touches[0].clientX;
-                state.touch.startY = e.touches[0].clientY;
-                state.touch.startTime = Date.now();
-                state.touch.isSwiping = false;
-                state.touch.isLongPress = false;
-                state.touch.didMove = false;
-                state.touch.longPressTimer = setTimeout(() => {
-                    state.touch.isLongPress = true;
-                    helpers.triggerHapticFeedback('medium');
-                    handlers.editPostIt(parseInt(target.dataset.id, 10));
-                }, 500);
+                const touch = e.touches[0];
+                startDrag(e, e.target.closest('.post-it'), touch.clientX, touch.clientY);
             }, { passive: true });
 
             dom.postItContainer.addEventListener('touchmove', e => {
-                if (!state.touch.target) return;
-                const deltaX = e.touches[0].clientX - state.touch.startX;
-                const deltaY = e.touches[0].clientY - state.touch.startY;
-                if (!state.touch.isSwiping && Math.abs(deltaX) > 10) {
-                    state.touch.isSwiping = true;
-                    state.touch.target.classList.add('swiping');
-                }
-                if (state.touch.isSwiping) {
-                    clearTimeout(state.touch.longPressTimer);
-                    if (Math.abs(deltaX) > Math.abs(deltaY)) e.preventDefault();
-                    state.touch.target.style.transform = `translateX(${deltaX}px)`;
-                } else if (Math.abs(deltaY) > 10) {
-                    clearTimeout(state.touch.longPressTimer);
-                }
-                state.touch.didMove = true;
+                const touch = e.touches[0];
+                dragMove(e, touch.clientX, touch.clientY);
             }, { passive: false });
 
             dom.postItContainer.addEventListener('touchend', e => {
-                if (!state.touch.target) return;
-                clearTimeout(state.touch.longPressTimer);
-                const target = state.touch.target;
-                if (state.touch.isSwiping) {
-                    const deltaX = e.changedTouches[0].clientX - state.touch.startX;
-                    const threshold = target.offsetWidth * 0.5;
-                    if (Math.abs(deltaX) > threshold) {
-                        handlers.deletePostIt(parseInt(target.dataset.id, 10));
-                    } else {
-                        target.classList.add('returning');
-                        target.style.transform = 'translateX(0)';
-                        target.addEventListener('transitionend', () => target.classList.remove('returning'), { once: true });
-                    }
+                const touch = e.changedTouches[0];
+                endDrag(touch.clientX);
+            });
+
+            dom.postItContainer.addEventListener('mousedown', e => {
+                startDrag(e, e.target.closest('.post-it'), e.clientX, e.clientY);
+            });
+
+            document.addEventListener('mousemove', e => {
+                if (state.drag.target) {
+                    dragMove(e, e.clientX, e.clientY);
                 }
-                target.classList.remove('swiping');
-                Object.keys(state.touch).forEach(key => state.touch[key] = (typeof state.touch[key] === 'boolean') ? false : null);
-                setTimeout(() => { state.touch.didMove = false; }, 100);
+            });
+
+            document.addEventListener('mouseup', e => {
+                if (state.drag.target) {
+                    endDrag(e.clientX);
+                }
             });
 
             dom.toggleAutocopyBtn.addEventListener('click', async () => {
@@ -1621,11 +1682,8 @@
             });
 
             document.addEventListener('keydown', e => {
-                if (Swal.isVisible()) return;
-
+                if (state.isModalOpen) return;
                 const activeElement = document.activeElement;
-                const isInputFocused = activeElement === dom.textInput || activeElement === dom.searchInput;
-
                 if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
                     if (activeElement === dom.textInput && dom.textInput.value === '' && state.undoableClearText) {
                         e.preventDefault();
@@ -1634,42 +1692,18 @@
                     }
                     return;
                 }
-
                 if (e.key === "Escape" && !state.isComposing) {
-                    if (state.focusedPostItId) {
-                        ui.setFocusToPostIt(null);
-                    } else if (dom.textInput.value !== "") {
+                    if (dom.textInput.value !== "") {
                         dom.deleteBtn.click();
                     } else if (dom.searchInput.value !== "") {
                         dom.searchClearBtn.click();
                     }
                 }
+            });
 
-                if (!isInputFocused && state.focusedPostItId) {
-                    const postItElements = Array.from(dom.postItContainer.querySelectorAll('.post-it:not([style*="display: none"])'));
-                    if (postItElements.length === 0) return;
-
-                    const currentIndex = postItElements.findIndex(el => parseInt(el.dataset.id) === state.focusedPostItId);
-
-                    if (e.key === 'ArrowDown') {
-                        e.preventDefault();
-                        const nextIndex = (currentIndex + 1) % postItElements.length;
-                        ui.setFocusToPostIt(parseInt(postItElements[nextIndex].dataset.id));
-                    } else if (e.key === 'ArrowUp') {
-                        e.preventDefault();
-                        const prevIndex = (currentIndex - 1 + postItElements.length) % postItElements.length;
-                        ui.setFocusToPostIt(parseInt(postItElements[prevIndex].dataset.id));
-                    } else if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const postIt = state.postIts.find(p => p.id === state.focusedPostItId);
-                        if (postIt) api.copyToClipboard(postIt.text);
-                    } else if (e.key === 'Delete' || e.key === 'Backspace') {
-                        e.preventDefault();
-                        handlers.deletePostIt(state.focusedPostItId);
-                    } else if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
-                        e.preventDefault();
-                        handlers.editPostIt(state.focusedPostItId);
-                    }
+            window.addEventListener('beforeunload', () => {
+                if (state.postIts.length > 0) {
+                    localStorage.setItem('cba_we_emergency_backup', JSON.stringify(state.postIts));
                 }
             });
 
