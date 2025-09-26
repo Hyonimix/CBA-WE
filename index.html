@@ -691,6 +691,7 @@
                 undoableClearText: null,
                 lastDeletedAll: null,
                 lastDeletedItem: null,
+                lastEditedItem: null,
                 isModalOpen: false,
                 blockNextClick: false,
                 drag: {
@@ -1163,6 +1164,17 @@
                         state.lastDeletedItem = null;
                     }
                 },
+                // 포스트잇 수정 취소 처리
+                async undoEditPostIt() {
+                    if (state.lastEditedItem) {
+                        const { id, originalText } = state.lastEditedItem;
+                        await handlers.updatePostIt(id, originalText);
+                        await api.addLog("UNDID_UPDATE", id);
+                        ui.showToast("修正を元に戻しました。");
+                        helpers.triggerHapticFeedback('light');
+                        state.lastEditedItem = null;
+                    }
+                },
                 // 입력창 클리어 취소 처리
                 restoreClearedText(textToRestore) {
                     if (textToRestore) {
@@ -1191,7 +1203,7 @@
                             if (!value) return "内容は空にできません！";
                             const valueSize = new Blob([value]).size;
                             if (valueSize > MAX_POST_SIZE_BYTES) {
-                                return `内容が大きすぎます (最大96KB, 現在 ${Math.round(valueSize / 1024)}KB)`;
+                                return `内容が大きすぎます。(最大96KB, 現在 ${Math.round(valueSize / 1024)}KB)`;
                             }
                             return null;
                         },
@@ -1202,16 +1214,16 @@
                             state.isModalOpen = false;
                         }
                     }).then(async result => {
+                        state.isModalOpen = false;
                         if (result.isConfirmed) {
-                            state.isModalOpen = false; 
-                            await handlers.updatePostIt(id, result.value);
-                            Swal.fire({
-                                title: "保存しました！",
-                                icon: "success",
-                                timer: 1500,
-                                showConfirmButton: false,
-                                customClass: { popup: 'swal2-popup' }
-                            });
+                            const originalText = postItData.text;
+                            const newText = result.value;
+                            if (originalText !== newText) {
+                                state.lastEditedItem = { id: id, originalText: originalText };
+                                await handlers.updatePostIt(id, newText);
+                                const truncatedText = newText.length > 10 ? `${newText.substring(0, 10)}…` : newText;
+                                ui.showToast(`"${truncatedText}"を修正完了しました。`, () => handlers.undoEditPostIt());
+                            }
                         }
                     });
                 },
@@ -1709,7 +1721,7 @@
                 state.settings.isNewlineEnabled = !state.settings.isNewlineEnabled;
                 await api.saveState();
                 ui.updateToggleButtons();
-                ui.showToast(state.settings.isNewlineEnabled ? "Enterで改行が有効になりました。" : "Enterで改行が無効になりました。");
+                ui.showToast(state.settings.isNewlineEnabled ? "Enterで改行するようになりました。" : "Shift + Enterのみで改行するようになりました。");
                 helpers.triggerHapticFeedback('light');
             });
 
