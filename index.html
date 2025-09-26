@@ -1203,6 +1203,7 @@
                         }
                     }).then(async result => {
                         if (result.isConfirmed) {
+                            state.isModalOpen = false; 
                             await handlers.updatePostIt(id, result.value);
                             Swal.fire({
                                 title: "保存しました！",
