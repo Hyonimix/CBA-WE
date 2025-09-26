@@ -1,6 +1,7 @@
 # Welcome to CBA-Worker Edition
+https://hyonimix.github.io/CBA-WE/
 
-This guide explains how to use the app. Please select your language(AI Translated):
+This guide explains how to use the app. Please select your language (AI Translated):
 
 - [English](#english)
 - [日本語 (Japanese)](#japanese)
@@ -10,16 +11,21 @@ This guide explains how to use the app. Please select your language(AI Translate
 
 ## English
 
-A simple and secure clipboard assistant to help you save and manage frequently used text and notes.
+A simple yet powerful and secure clipboard assistant to help you save and manage frequently used text and notes.
 
 ### Core Features
 
 - **Save a Note**: Type or paste text into the input box at the top and click the 'Save' button.
 - **Copy a Note**: Simply click on any saved note to instantly copy its content to your clipboard.
-- **Search for a Note**: Use the search bar to quickly find the note you need.
-- **Edit & Delete**: Click the `...` button on any note to open a menu where you can edit or delete it.
-- **Keyboard Controls**: On a desktop, you can use the `Arrow Keys` to navigate between your saved notes. Press `Enter` to copy a selected note, and `Delete` to remove it.
-- **Backup & Restore**: Use the backup (💾) and restore (📂) buttons in the header to save all your notes to a file or load them back. This is very useful when you switch computers.
+- **Search for a Note**: Use the search bar to quickly find the note you need by filtering in real-time.
+- **Multiple Ways to Edit & Delete**:
+    - **Swipe**: Swipe any note left or right to quickly delete it.
+    - **Long Press**: Press and hold a note to directly enter edit mode.
+    - **Menu Button**: Click the `...` button on any note to open a menu where you can edit or delete it.
+- **Secure Backup & Restore**: Use the backup (💾) and restore (📂) buttons in the header. All your notes are saved to a file protected with **strong, password-based encryption**. This is essential for securely transferring data when you switch devices.
+- **Convenience Toggles**:
+    - **Auto-Copy (📋)**: Automatically copy the text to your clipboard as you type in the input box.
+    - **Enter Key Action (¶)**: Toggle whether pressing the `Enter` key creates a new line or saves the note.
 
 ### How to Install as an App
 
@@ -43,7 +49,7 @@ You can install this app on your device to use it like a native application for 
 
 ### Your Data is Safe
 
-All your notes are encrypted and saved **only on your device** within your browser. Nothing is ever sent to an external server, ensuring your privacy.
+All your notes are encrypted and saved **only on your device** within your browser. Nothing is ever sent to an external server, ensuring your privacy is completely protected.
 
 ---
 
@@ -55,10 +61,15 @@ All your notes are encrypted and saved **only on your device** within your brows
 
 - **メモの保存**: 上部の入力欄にテキストを入力または貼り付け、「保存」ボタンをクリックします。
 - **メモのコピー**: 保存したメモをクリックするだけで、その内容がクリップボードにコピーされます。
-- **メモの検索**: 検索バーを使って、目的のメモをすばやく見つけることができます。
-- **編集と削除**: 各メモの「...」ボタンをクリックすると、編集または削除のメニューが開きます。
-- **キーボード操作**: デスクトップでは、`矢印キー`を使って保存したメモ間を移動できます。選択したメモは `Enter`キーでコピー、`Delete`キーで削除できます。
-- **バックアップと復元**: ヘッダーのバックアップ（💾）と復元（📂）ボタンを使って、すべてのデータをファイルに保存したり、復元したりできます。PCを買い替える際に非常に便利です。
+- **メモの検索**: 検索バーを使って、目的のメモをリアルタイムで絞り込み、すばやく見つけることができます。
+- **多彩な編集・削除方法**:
+    - **スワイプ**: メモを左右にスワイプするだけで、素早く削除できます。
+    - **長押し**: メモを長く押し続けると、直接編集モードに入ります。
+    - **メニューボタン**: 各メモの「...」ボタンをクリックすると、編集または削除のメニューが開きます。
+- **安全なバックアップと復元**: ヘッダーのバックアップ（💾）と復元（📂）ボタンを使用します。すべてのデータは**パスワードベースの強力な暗号化**で保護されたファイルに保存されます。デバイスを買い替える際にデータを安全に移行するために不可欠です。
+- **便利な切り替え機能**:
+    - **自動コピー (📋)**: 入力欄にタイピングすると、その内容が自動でクリップボードにコピーされます。
+    - **Enterキーの動作 (¶)**: `Enter`キーを押した際に、改行するか、メモを保存するかを切り替えられます。
 
 ### アプリとしてインストールする方法
 
@@ -94,10 +105,15 @@ All your notes are encrypted and saved **only on your device** within your brows
 
 - **메모 저장하기**: 상단 입력창에 텍스트를 입력하거나 붙여넣은 후 '저장' 버튼을 누르세요.
 - **메모 복사하기**: 저장된 메모를 클릭하기만 하면 내용이 즉시 클립보드로 복사됩니다.
-- **메모 검색하기**: 검색창을 이용해 원하는 메모를 빠르게 찾을 수 있습니다.
-- **편집과 삭제**: 각 메모의 '...' 버튼을 클릭하면 내용을 수정하거나 삭제할 수 있는 메뉴가 나타납니다.
-- **키보드 조작**: 데스크톱 환경에서는 `방향키`로 저장된 메모 사이를 이동할 수 있습니다. 선택된 메모는 `Enter` 키로 복사하고, `Delete` 키로 삭제할 수 있습니다.
-- **백업과 복원**: 상단의 백업(💾) 및 복원(📂) 버튼으로 모든 데이터를 파일에 저장하거나 불러올 수 있습니다. 컴퓨터를 바꿀 때 매우 유용합니다.
+- **메모 검색하기**: 검색창을 이용해 원하는 메모를 실시간으로 필터링하여 빠르게 찾을 수 있습니다.
+- **다양한 편집 및 삭제 방법**:
+    - **스와이프**: 메모를 좌우로 쓸어넘겨서 빠르게 삭제할 수 있습니다.
+    - **길게 누르기**: 메모를 길게 누르면 바로 편집 모드로 진입합니다.
+    - **메뉴 버튼**: 각 메모의 '...' 버튼을 클릭하면 내용을 수정하거나 삭제할 수 있는 메뉴가 나타납니다.
+- **안전한 백업과 복원**: 상단의 백업(💾) 및 복원(📂) 버튼을 사용하세요. 모든 데이터는 **비밀번호 기반의 강력한 암호화**로 보호된 파일로 저장됩니다. 기기를 바꿀 때 데이터를 안전하게 옮기기 위해 필수적입니다.
+- **편의 기능 토글**:
+    - **자동 복사 (📋)**: 입력창에 글자를 입력하는 동시에 클립보드로 자동 복사합니다.
+    - **Enter 키 동작 (¶)**: `Enter` 키를 눌렀을 때 줄바꿈으로 동작할지, 저장으로 동작할지 설정할 수 있습니다.
 
 ### 앱으로 설치하여 사용하기
 
