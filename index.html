@@ -92,7 +92,7 @@
             display: flex;
             align-items: center;
             cursor: pointer;
-            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out, opacity 0.2s ease-in-out;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             touch-action: pan-y;
         }
@@ -111,6 +111,31 @@
         .post-it:hover {
             transform: scale(1.02);
             box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .post-it.dragging {
+            position: absolute;
+            width: 80%; 
+            opacity: 0.9;
+            box-shadow: 0 15px 25px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            cursor: grabbing;
+            transition: none; 
+            pointer-events: none; 
+        }
+
+        .post-it.drag-over {
+             opacity: 0.5;
+        }
+
+        .post-it-placeholder {
+            width: 80%;
+            margin: 10px auto;
+            border-radius: 8px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 2px dashed rgba(255, 255, 255, 0.4);
+            box-sizing: border-box;
+            transition: none;
         }
 
         .post-it.active {
@@ -695,13 +720,18 @@
                 isModalOpen: false,
                 blockNextClick: false,
                 drag: {
-                    target: null,
+                    target: null, 
+                    initialTop: 0, 
+                    initialLeft: 0, 
                     startX: 0,
                     startY: 0,
-                    isDragging: false,
+                    isSwiping: false, 
+                    isReordering: false, 
                     isLongPress: false,
                     longPressTimer: null,
                     didMove: false,
+                    placeholder: null, 
+                    scrollInterval: null 
                 }
             };
 
@@ -921,7 +951,7 @@
                     postIt.dataset.id = postItData.id;
                     postIt.style.backgroundColor = postItData.color;
                     postIt.setAttribute('role', 'listitem');
-                    postIt.setAttribute('aria-label', `ポスト: ${postItData.text}。クリックでコピー、スワイプで削除。`);
+                    postIt.setAttribute('aria-label', `ポスト: ${postItData.text}。クリックでコピー、長押しで編集、スワイプで削除、ドラッグで順番変更。`);
 
                     const contentSpan = document.createElement('span');
                     contentSpan.className = 'post-it-content';
@@ -1001,7 +1031,7 @@
                     if (el) {
                         const contentSpan = el.querySelector('.post-it-content');
                         if (contentSpan) contentSpan.textContent = postItData.text;
-                        el.setAttribute('aria-label', `ポスト: ${postItData.text}。クリックでコピー、スワイプで削除。`);
+                        el.setAttribute('aria-label', `ポスト: ${postItData.text}。クリックでコピー、長押しで編集、スワイプで削除、ドラッグで順番変更。`);
                         el.querySelector('.edit').setAttribute('aria-label', `"${postItData.text}"の内容を編集`);
                         el.querySelector('.delete').setAttribute('aria-label', `"${postItData.text}"の内容を削除`);
                     }
@@ -1597,17 +1627,16 @@
             });
 
             function startDrag(e, target, clientX, clientY) {
-                if (e.button && e.button !== 0) return;
-                if (!target || e.target.closest('.post-it-controls, .post-it-more-btn') || state.isModalOpen) return;
 
+                if ((e.button && e.button !== 0) || !target || e.target.closest('.post-it-controls, .post-it-more-btn') || state.isModalOpen) return;
                 state.drag.target = target;
                 state.drag.startX = clientX;
                 state.drag.startY = clientY;
-                state.drag.isDragging = false;
+                state.drag.isSwiping = false;
+                state.drag.isReordering = false;
                 state.drag.isLongPress = false;
                 state.drag.didMove = false;
 
-                target.classList.add('active');
 
                 state.drag.longPressTimer = setTimeout(() => {
                     if (!state.drag.didMove) {
@@ -1625,28 +1654,113 @@
                 const deltaX = clientX - state.drag.startX;
                 const deltaY = clientY - state.drag.startY;
 
-                if (!state.drag.didMove && (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5)) {
+                const MOVE_THRESHOLD = 10;
+
+                if (!state.drag.didMove && (Math.abs(deltaX) > MOVE_THRESHOLD || Math.abs(deltaY) > MOVE_THRESHOLD)) {
                     state.drag.didMove = true;
                     clearTimeout(state.drag.longPressTimer);
+                    
+                    const VERTICAL_BIAS = 1.5;
+                    if (Math.abs(deltaX) > Math.abs(deltaY) * VERTICAL_BIAS) {
+                        state.drag.isSwiping = true;
+                        state.drag.target.classList.add('swiping');
+                    } else {
+                        state.drag.isReordering = true;
+                        const target = state.drag.target;
+                        const targetRect = target.getBoundingClientRect();
+                        
+                        state.drag.initialLeft = targetRect.left;
+                        state.drag.initialTop = targetRect.top;
+
+                        animatePostItShift(() => {
+                            target.classList.add('dragging');
+                            target.style.left = `${state.drag.initialLeft}px`;
+                            target.style.top = `${state.drag.initialTop}px`;
+                        });
+                        
+                        const placeholder = document.createElement('div');
+                        placeholder.className = 'post-it-placeholder';
+                        placeholder.style.height = `${targetRect.height}px`;
+                        state.drag.placeholder = placeholder;
+                        dom.postItContainer.insertBefore(placeholder, target.nextSibling); 
+                        
+                        document.querySelectorAll('#post-it-container .post-it:not(.dragging)').forEach(p => p.classList.add('drag-over'));
+                    }
+                    helpers.triggerHapticFeedback('light');
                 }
 
-                if (state.drag.didMove && Math.abs(deltaX) > Math.abs(deltaY)) {
-                    if (!state.drag.isDragging) {
-                        state.drag.isDragging = true;
-                        state.drag.target.classList.add('swiping');
+                if (state.drag.didMove) {
+                    if(e.cancelable) e.preventDefault();
+                    if (state.drag.isSwiping) {
+                        state.drag.target.style.transform = `translateX(${deltaX}px)`;
+                    } else if (state.drag.isReordering) {
+                        state.drag.target.style.left = `${state.drag.initialLeft + deltaX}px`;
+                        state.drag.target.style.top = `${state.drag.initialTop + deltaY}px`;
+                        state.drag.target.style.transform = 'scale(1.05) rotate(2deg)';
+
+                        const overElement = getDragOverElement(clientY);
+                        if (overElement && overElement !== state.drag.placeholder) {
+                           const rect = overElement.getBoundingClientRect();
+                           const isAfter = clientY > rect.top + rect.height / 2;
+                           const targetNode = isAfter ? overElement.nextSibling : overElement;
+                           
+                           if (state.drag.placeholder.nextSibling !== targetNode) {
+                               animatePostItShift(() => {
+                                   dom.postItContainer.insertBefore(state.drag.placeholder, targetNode);
+                               });
+                           }
+                        } else if (!overElement) {
+                            if (state.drag.placeholder.nextSibling) { 
+                                animatePostItShift(() => {
+                                    dom.postItContainer.appendChild(state.drag.placeholder);
+                                });
+                            }
+                        }
+                        handleAutoScroll(clientY);
                     }
-                    if (e.cancelable) e.preventDefault();
-                    state.drag.target.style.transform = `translateX(${deltaX}px) scale(1.02)`;
                 }
             }
+            
+            function animatePostItShift(moveAction) {
+                const itemsToAnimate = [...dom.postItContainer.querySelectorAll('.post-it:not(.dragging)')];
+                const firstPositions = new Map();
+                itemsToAnimate.forEach(item => {
+                    firstPositions.set(item, item.getBoundingClientRect());
+                });
+
+                moveAction(); 
+
+                itemsToAnimate.forEach(item => {
+                    const lastPos = item.getBoundingClientRect();
+                    const firstPos = firstPositions.get(item);
+                    const deltaY = firstPos.top - lastPos.top;
+                    const deltaX = firstPos.left - lastPos.left;
+
+                    if (deltaY !== 0 || deltaX !== 0) {
+                        item.style.transition = 'none';
+                        item.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+                        
+                        requestAnimationFrame(() => {
+                            item.style.transition = 'transform 0.2s ease-out';
+                            item.style.transform = '';
+                        });
+
+                        item.addEventListener('transitionend', () => {
+                            item.style.transition = '';
+                        }, { once: true });
+                    }
+                });
+            }
+
 
             function endDrag(clientX) {
                 if (!state.drag.target) return;
 
-                const target = state.drag.target;
                 clearTimeout(state.drag.longPressTimer);
+                clearInterval(state.drag.scrollInterval);
+                const target = state.drag.target;
 
-                if (state.drag.isDragging) {
+                if (state.drag.isSwiping) {
                     const deltaX = clientX - state.drag.startX;
                     const threshold = target.offsetWidth * 0.4;
 
@@ -1655,13 +1769,39 @@
                         handlers.deletePostIt(parseInt(target.dataset.id, 10), direction);
                     } else {
                         target.classList.add('returning');
-                        target.style.transform = 'translateX(0) scale(1)';
+                        target.style.transform = 'translateX(0)';
                         target.addEventListener('transitionend', () => {
                             target.classList.remove('returning');
-                            target.style.transform = '';
                         }, { once: true });
                     }
-                } else if (state.drag.didMove) {
+                } else if (state.drag.isReordering) {
+                    const draggedId = parseInt(target.dataset.id, 10);
+                    const allItems = [...dom.postItContainer.children];
+                    const newDOMIndex = allItems.indexOf(state.drag.placeholder);
+                    
+                    const totalItems = state.postIts.length;
+                    const oldStateIndex = state.postIts.findIndex(p => p.id === draggedId);
+                    
+                    const newStateIndex = totalItems - 1 - newDOMIndex;
+                    
+                    if (oldStateIndex !== -1 && oldStateIndex !== newStateIndex) {
+                        const [movedItem] = state.postIts.splice(oldStateIndex, 1);
+                        state.postIts.splice(newStateIndex, 0, movedItem);
+                        api.saveState();
+                        api.addLog("REORDERED", { from: oldStateIndex, to: newStateIndex });
+                        helpers.triggerHapticFeedback('medium');
+                    }
+                    
+                    if (state.drag.placeholder.parentNode) {
+                       state.drag.placeholder.parentNode.replaceChild(target, state.drag.placeholder);
+                    }
+                    
+                    target.classList.remove('dragging');
+                    target.style.position = '';
+                    target.style.top = '';
+                    target.style.left = '';
+                    target.style.transform = '';
+                    document.querySelectorAll('#post-it-container .post-it').forEach(p => p.classList.remove('drag-over'));
                 }
 
                 if (state.drag.didMove) {
@@ -1674,9 +1814,43 @@
 
             function resetDragState() {
                 if (state.drag.target) {
-                    state.drag.target.classList.remove('swiping', 'active');
+                    state.drag.target.classList.remove('swiping', 'active', 'dragging');
+                    state.drag.target.style.transform = '';
+                    state.drag.target.style.position = '';
+                    state.drag.target.style.top = '';
+                    state.drag.target.style.left = '';
                 }
-                state.drag = { target: null, startX: 0, startY: 0, isDragging: false, isLongPress: false, longPressTimer: null, didMove: false };
+                if (state.drag.placeholder) {
+                    state.drag.placeholder.remove();
+                }
+                clearInterval(state.drag.scrollInterval);
+                document.querySelectorAll('#post-it-container .post-it.drag-over').forEach(p => p.classList.remove('drag-over'));
+                state.drag = { target: null, initialTop: 0, initialLeft: 0, startX: 0, startY: 0, isSwiping: false, isReordering: false, isLongPress: false, longPressTimer: null, didMove: false, placeholder: null, scrollInterval: null };
+            }
+
+            function getDragOverElement(y) {
+                const draggableElements = [...dom.postItContainer.querySelectorAll('.post-it:not(.dragging), .post-it-placeholder')];
+                return draggableElements.reduce((closest, child) => {
+                    const box = child.getBoundingClientRect();
+                    const offset = y - box.top - box.height / 2;
+                    if (offset < 0 && offset > closest.offset) {
+                        return { offset: offset, element: child };
+                    } else {
+                        return closest;
+                    }
+                }, { offset: Number.NEGATIVE_INFINITY }).element;
+            }
+            
+            function handleAutoScroll(clientY) {
+                const SCROLL_AREA = 60;
+                const SCROLL_SPEED = 10;
+                clearInterval(state.drag.scrollInterval);
+                state.drag.scrollInterval = null;
+                if (clientY < SCROLL_AREA) {
+                    state.drag.scrollInterval = setInterval(() => { window.scrollBy(0, -SCROLL_SPEED); }, 15);
+                } else if (clientY > window.innerHeight - SCROLL_AREA) {
+                    state.drag.scrollInterval = setInterval(() => { window.scrollBy(0, SCROLL_SPEED); }, 15);
+                }
             }
 
             dom.postItContainer.addEventListener('touchstart', e => {
@@ -1685,11 +1859,13 @@
             }, { passive: true });
 
             dom.postItContainer.addEventListener('touchmove', e => {
+                if (!state.drag.target) return;
                 const touch = e.touches[0];
                 dragMove(e, touch.clientX, touch.clientY);
             }, { passive: false });
 
             dom.postItContainer.addEventListener('touchend', e => {
+                if (!state.drag.target) return;
                 const touch = e.changedTouches[0];
                 endDrag(touch.clientX);
             });
