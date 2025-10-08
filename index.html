@@ -37,6 +37,7 @@
 
         html {
             overflow-x: hidden;
+            overscroll-behavior-y: contain;
         }
 
         body {
@@ -725,6 +726,7 @@
                     initialLeft: 0, 
                     startX: 0,
                     startY: 0,
+                    initialTouchY: 0,
                     lastX: 0,
                     isSwiping: false, 
                     isReordering: false, 
@@ -1655,6 +1657,7 @@
                 state.drag.target = target;
                 state.drag.startX = clientX;
                 state.drag.startY = clientY;
+                state.drag.initialTouchY = clientY;
                 state.drag.lastX = clientX;
                 state.drag.isSwiping = false;
                 state.drag.isReordering = false;
@@ -1991,6 +1994,17 @@
                     localStorage.setItem('cba_we_emergency_backup', JSON.stringify(state.postIts));
                 }
             });
+
+            // 전역 터치 이동 이벤트 리스너 (새로고침 방지용)
+            document.addEventListener('touchmove', e => {
+                if (!state.drag.target && window.scrollY === 0) {
+                    if (e.touches[0].clientY > state.drag.initialTouchY) {
+                        if (e.cancelable) {
+                            e.preventDefault();
+                        }
+                    }
+                }
+            }, { passive: false });
 
             initialize();
 
