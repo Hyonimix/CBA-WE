@@ -37,6 +37,7 @@
 
         html {
             overflow-x: hidden;
+            scrollbar-gutter: stable;
             overscroll-behavior-y: contain;
         }
 
@@ -116,7 +117,6 @@
         
         .post-it.dragging {
             position: absolute;
-            width: 80%; 
             opacity: 0.95;
             box-shadow: 0 15px 25px rgba(0, 0, 0, 0.3);
             z-index: 1000;
@@ -443,14 +443,26 @@
         }
 
         .cbassist-header {
-            background-color: #333;
+            background: linear-gradient(to right, #333 0%, var(--bg-color));
             color: #ffffff;
             padding: 10px 15px;
             font-weight: bold;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
             display: flex;
             align-items: center;
             justify-content: space-between;
+            position: relative;
+        }
+
+        .cbassist-header::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: linear-gradient(to right, rgba(0, 0, 0, 0.2) 0%, transparent);
+            filter: blur(5px);
+            z-index: -1;
         }
 
         .cbassist-header>span {
@@ -735,6 +747,8 @@
                     scrollInterval: null,
                     grabOffsetX: 0,
                     grabOffsetY: 0,
+                    initialWidth: 0, 
+                    initialHeight: 0,
                     angle: 0,
                     angularVelocity: 0,
                     targetAngle: 0,
@@ -1681,6 +1695,8 @@
                     didMove: false,
                     grabOffsetX: clientX - targetRect.left,
                     grabOffsetY: clientY - targetRect.top,
+                    initialWidth: targetRect.width, 
+                    initialHeight: targetRect.height,
                     angle: 0,
                     angularVelocity: 0,
                     targetAngle: 0,
@@ -1717,17 +1733,21 @@
                         const target = state.drag.target;
                         target.style.transformOrigin = `${state.drag.grabOffsetX}px ${state.drag.grabOffsetY}px`;
                         
+                        target.style.width = `${state.drag.initialWidth}px`;
+                        target.style.height = `${state.drag.initialHeight}px`;
+
+                        const placeholder = document.createElement('div');
+                        placeholder.className = 'post-it-placeholder';
+                        placeholder.style.height = `${state.drag.initialHeight}px`;
+                        state.drag.placeholder = placeholder;
+                        const nextSibling = target.nextSibling; 
+
                         animatePostItShift(() => {
+                            dom.postItContainer.insertBefore(placeholder, nextSibling);
                             target.classList.add('dragging');
                             target.style.left = `${clientX - state.drag.grabOffsetX}px`;
                             target.style.top = `${clientY - state.drag.grabOffsetY}px`;
                         });
-                        
-                        const placeholder = document.createElement('div');
-                        placeholder.className = 'post-it-placeholder';
-                        placeholder.style.height = `${target.getBoundingClientRect().height}px`;
-                        state.drag.placeholder = placeholder;
-                        dom.postItContainer.insertBefore(placeholder, target.nextSibling); 
                         
                         document.querySelectorAll('#post-it-container .post-it:not(.dragging)').forEach(p => p.classList.add('drag-over'));
 
@@ -1899,6 +1919,8 @@
                     state.drag.target.style.position = '';
                     state.drag.target.style.top = '';
                     state.drag.target.style.left = '';
+                    state.drag.target.style.width = ''; 
+                    state.drag.target.style.height = '';
                     state.drag.target.style.transform = '';
                     state.drag.target.style.transformOrigin = '';
                 }
@@ -1915,8 +1937,9 @@
                     target: null, startX: 0, startY: 0, lastX: 0, lastY: 0,
                     isSwiping: false, isReordering: false, isLongPress: false,
                     longPressTimer: null, didMove: false, placeholder: null, scrollInterval: null,
-                    grabOffsetX: 0, grabOffsetY: 0, angle: 0, angularVelocity: 0,
-                    targetAngle: 0, lastFrameTime: null, animationFrameId: null
+                    grabOffsetX: 0, grabOffsetY: 0, initialWidth: 0, initialHeight: 0,
+                    angle: 0, angularVelocity: 0, targetAngle: 0, lastFrameTime: null,
+                    animationFrameId: null
                 };
             }
 
