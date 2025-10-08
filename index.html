@@ -117,7 +117,7 @@
         .post-it.dragging {
             position: absolute;
             width: 80%; 
-            opacity: 0.9;
+            opacity: 0.95;
             box-shadow: 0 15px 25px rgba(0, 0, 0, 0.3);
             z-index: 1000;
             cursor: grabbing;
@@ -721,13 +721,11 @@
                 isModalOpen: false,
                 blockNextClick: false,
                 drag: {
-                    target: null, 
-                    initialTop: 0, 
-                    initialLeft: 0, 
+                    target: null,
                     startX: 0,
                     startY: 0,
-                    initialTouchY: 0,
                     lastX: 0,
+                    lastY: 0,
                     isSwiping: false, 
                     isReordering: false, 
                     isLongPress: false,
@@ -735,9 +733,12 @@
                     didMove: false,
                     placeholder: null, 
                     scrollInterval: null,
+                    grabOffsetX: 0,
+                    grabOffsetY: 0,
                     angle: 0,
                     angularVelocity: 0,
                     targetAngle: 0,
+                    lastFrameTime: null,
                     animationFrameId: null
                 }
             };
@@ -1634,41 +1635,57 @@
             });
             
             // (물리) 애니메이션 루프
-            function physicsAnimate() {
+            function physicsAnimate(timestamp) {
                 if (!state.drag.target || !state.drag.isReordering) {
                     state.drag.animationFrameId = null;
                     return;
                 }
 
-                // 스프링 상수와 감쇠 계수 (흔들림 강도 조절)
-                const SPRING = 0.1;
-                const DAMPING = 0.8;
+                if (!state.drag.lastFrameTime) {
+                    state.drag.lastFrameTime = timestamp;
+                    state.drag.animationFrameId = requestAnimationFrame(physicsAnimate);
+                    return;
+                }
 
-                const springForce = (state.drag.targetAngle - state.drag.angle) * SPRING;
-                state.drag.angularVelocity *= DAMPING;
-                state.drag.angularVelocity += springForce;
-                state.drag.angle += state.drag.angularVelocity;
+                const deltaTime = (timestamp - state.drag.lastFrameTime) / 1000;
+                state.drag.lastFrameTime = timestamp;
+                const SPRING_CONSTANT = 250;
+                const DAMPING_COEFFICIENT = 20;
+                const angleDifference = state.drag.angle - state.drag.targetAngle;
+                const springForce = -SPRING_CONSTANT * angleDifference;
+                const dampingForce = -DAMPING_COEFFICIENT * state.drag.angularVelocity;
+                const totalForce = springForce + dampingForce;
+                const angularAcceleration = totalForce;
+                state.drag.angularVelocity += angularAcceleration * deltaTime;
+                state.drag.angle += state.drag.angularVelocity * deltaTime;
                 state.drag.target.style.transform = `scale(1.05) rotate(${state.drag.angle}deg)`;
+
                 state.drag.animationFrameId = requestAnimationFrame(physicsAnimate);
             }
 
+
             function startDrag(e, target, clientX, clientY) {
                 if ((e.button && e.button !== 0) || !target || e.target.closest('.post-it-controls, .post-it-more-btn') || state.isModalOpen) return;
-                state.drag.target = target;
-                state.drag.startX = clientX;
-                state.drag.startY = clientY;
-                state.drag.initialTouchY = clientY;
-                state.drag.lastX = clientX;
-                state.drag.isSwiping = false;
-                state.drag.isReordering = false;
-                state.drag.isLongPress = false;
-                state.drag.didMove = false;
                 
-                // 물리 상태 초기화
-                state.drag.angle = 0;
-                state.drag.angularVelocity = 0;
-                state.drag.targetAngle = 0;
-
+                const targetRect = target.getBoundingClientRect();
+                state.drag = {
+                    ...state.drag,
+                    target: target,
+                    startX: clientX,
+                    startY: clientY,
+                    lastX: clientX,
+                    lastY: clientY,
+                    isSwiping: false,
+                    isReordering: false,
+                    isLongPress: false,
+                    didMove: false,
+                    grabOffsetX: clientX - targetRect.left,
+                    grabOffsetY: clientY - targetRect.top,
+                    angle: 0,
+                    angularVelocity: 0,
+                    targetAngle: 0,
+                    lastFrameTime: null
+                };
 
                 state.drag.longPressTimer = setTimeout(() => {
                     if (!state.drag.didMove) {
@@ -1685,7 +1702,6 @@
 
                 const deltaX = clientX - state.drag.startX;
                 const deltaY = clientY - state.drag.startY;
-
                 const MOVE_THRESHOLD = 10;
 
                 if (!state.drag.didMove && (Math.abs(deltaX) > MOVE_THRESHOLD || Math.abs(deltaY) > MOVE_THRESHOLD)) {
@@ -1699,27 +1715,25 @@
                     } else {
                         state.drag.isReordering = true;
                         const target = state.drag.target;
-                        const targetRect = target.getBoundingClientRect();
+                        target.style.transformOrigin = `${state.drag.grabOffsetX}px ${state.drag.grabOffsetY}px`;
                         
-                        state.drag.initialLeft = targetRect.left;
-                        state.drag.initialTop = targetRect.top;
-
                         animatePostItShift(() => {
                             target.classList.add('dragging');
-                            target.style.left = `${state.drag.initialLeft}px`;
-                            target.style.top = `${state.drag.initialTop}px`;
+                            target.style.left = `${clientX - state.drag.grabOffsetX}px`;
+                            target.style.top = `${clientY - state.drag.grabOffsetY}px`;
                         });
                         
                         const placeholder = document.createElement('div');
                         placeholder.className = 'post-it-placeholder';
-                        placeholder.style.height = `${targetRect.height}px`;
+                        placeholder.style.height = `${target.getBoundingClientRect().height}px`;
                         state.drag.placeholder = placeholder;
                         dom.postItContainer.insertBefore(placeholder, target.nextSibling); 
                         
                         document.querySelectorAll('#post-it-container .post-it:not(.dragging)').forEach(p => p.classList.add('drag-over'));
-                        
+
                         // (물리) 애니메이션 루프 시작
                         if (!state.drag.animationFrameId) {
+                            state.drag.lastFrameTime = performance.now();
                             state.drag.animationFrameId = requestAnimationFrame(physicsAnimate);
                         }
                     }
@@ -1731,14 +1745,26 @@
                     if (state.drag.isSwiping) {
                         state.drag.target.style.transform = `translateX(${deltaX}px)`;
                     } else if (state.drag.isReordering) {
-                        state.drag.target.style.left = `${state.drag.initialLeft + deltaX}px`;
-                        state.drag.target.style.top = `${state.drag.initialTop + deltaY}px`;
+                        const newLeft = clientX - state.drag.grabOffsetX;
+                        const newTop = clientY - state.drag.grabOffsetY;
+                        
+                        state.drag.target.style.left = `${newLeft}px`;
+                        state.drag.target.style.top = `${newTop}px`;
                         
                         // (물리) 드래그 속도에 따라 목표 각도 설정 (민감도 상향)
                         const moveX = clientX - state.drag.lastX;
-                        state.drag.targetAngle = moveX * 0.8; 
-                        state.drag.lastX = clientX;
+                        const moveY = clientY - state.drag.lastY;
 
+                        const targetWidth = state.drag.target.offsetWidth;
+                        const normalizedGrabX = (state.drag.grabOffsetX / targetWidth) - 0.5;
+                        const angleFromX = moveX * 1.5;
+                        const angleFromY = moveY * normalizedGrabX * 4; 
+                        const combinedAngle = angleFromX + angleFromY;
+                        const maxAngle = 30; 
+                        state.drag.targetAngle = Math.max(-maxAngle, Math.min(maxAngle, combinedAngle));
+
+                        state.drag.lastX = clientX;
+                        state.drag.lastY = clientY;
 
                         const overElement = getDragOverElement(clientY);
                         if (overElement && overElement !== state.drag.placeholder) {
@@ -1801,7 +1827,7 @@
                 clearTimeout(state.drag.longPressTimer);
                 clearInterval(state.drag.scrollInterval);
                 const target = state.drag.target;
-                
+
                 // (물리) 애니메이션 루프 중지
                 if (state.drag.animationFrameId) {
                     cancelAnimationFrame(state.drag.animationFrameId);
@@ -1840,15 +1866,22 @@
                         helpers.triggerHapticFeedback('medium');
                     }
                     
-                    if (state.drag.placeholder.parentNode) {
+                    if (state.drag.placeholder && state.drag.placeholder.parentNode) {
                        state.drag.placeholder.parentNode.replaceChild(target, state.drag.placeholder);
                     }
                     
                     target.classList.remove('dragging');
+                    target.classList.add('returning');
                     target.style.position = '';
                     target.style.top = '';
                     target.style.left = '';
                     target.style.transform = '';
+                    target.style.transformOrigin = '';
+                    
+                    target.addEventListener('transitionend', () => {
+                        target.classList.remove('returning');
+                    }, { once: true });
+
                     document.querySelectorAll('#post-it-container .post-it').forEach(p => p.classList.remove('drag-over'));
                 }
 
@@ -1863,10 +1896,11 @@
             function resetDragState() {
                 if (state.drag.target) {
                     state.drag.target.classList.remove('swiping', 'active', 'dragging');
-                    state.drag.target.style.transform = '';
                     state.drag.target.style.position = '';
                     state.drag.target.style.top = '';
                     state.drag.target.style.left = '';
+                    state.drag.target.style.transform = '';
+                    state.drag.target.style.transformOrigin = '';
                 }
                 if (state.drag.placeholder) {
                     state.drag.placeholder.remove();
@@ -1876,7 +1910,14 @@
                 }
                 clearInterval(state.drag.scrollInterval);
                 document.querySelectorAll('#post-it-container .post-it.drag-over').forEach(p => p.classList.remove('drag-over'));
-                state.drag = { target: null, initialTop: 0, initialLeft: 0, startX: 0, startY: 0, isSwiping: false, isReordering: false, isLongPress: false, longPressTimer: null, didMove: false, placeholder: null, scrollInterval: null, angle: 0, angularVelocity: 0, targetAngle: 0, animationFrameId: null };
+                
+                state.drag = {
+                    target: null, startX: 0, startY: 0, lastX: 0, lastY: 0,
+                    isSwiping: false, isReordering: false, isLongPress: false,
+                    longPressTimer: null, didMove: false, placeholder: null, scrollInterval: null,
+                    grabOffsetX: 0, grabOffsetY: 0, angle: 0, angularVelocity: 0,
+                    targetAngle: 0, lastFrameTime: null, animationFrameId: null
+                };
             }
 
             function getDragOverElement(y) {
@@ -1996,9 +2037,16 @@
             });
 
             // 전역 터치 이동 이벤트 리스너 (새로고침 방지용)
+            let initialTouchY = 0;
+            document.addEventListener('touchstart', e => {
+                 if (e.touches.length === 1) {
+                    initialTouchY = e.touches[0].clientY;
+                }
+            }, { passive: true });
+
             document.addEventListener('touchmove', e => {
                 if (!state.drag.target && window.scrollY === 0) {
-                    if (e.touches[0].clientY > state.drag.initialTouchY) {
+                    if (e.touches[0].clientY > initialTouchY) {
                         if (e.cancelable) {
                             e.preventDefault();
                         }
