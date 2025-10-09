@@ -1840,8 +1840,7 @@
                 });
             }
 
-
-            function endDrag(clientX) {
+            async function endDrag(clientX) {
                 if (!state.drag.target) return;
 
                 clearTimeout(state.drag.longPressTimer);
@@ -1870,22 +1869,26 @@
                     }
                 } else if (state.drag.isReordering) {
                     const draggedId = parseInt(target.dataset.id, 10);
-                    const allItems = [...dom.postItContainer.children];
-                    const newDOMIndex = allItems.indexOf(state.drag.placeholder);
+                    const allItems = [...dom.postItContainer.children].filter(el => !el.classList.contains('dragging'));
+                    const placeholderIndex = allItems.indexOf(state.drag.placeholder);
+                    const currentDomIds = allItems.map((el, index) => {
+                        if (index === placeholderIndex) {
+                            return draggedId;
+                        }
+                        return parseInt(el.dataset.id, 10);
+                    });
+
+                    const newIdOrderForState = currentDomIds.reverse();
+                    const postItsMap = new Map(state.postIts.map(p => [p.id, p]));
+                    const newPostItsState = newIdOrderForState.map(id => postItsMap.get(id));
                     
-                    const totalItems = state.postIts.length;
-                    const oldStateIndex = state.postIts.findIndex(p => p.id === draggedId);
-                    
-                    const newStateIndex = totalItems - 1 - newDOMIndex;
-                    
-                    if (oldStateIndex !== -1 && oldStateIndex !== newStateIndex) {
-                        const [movedItem] = state.postIts.splice(oldStateIndex, 1);
-                        state.postIts.splice(newStateIndex, 0, movedItem);
-                        api.saveState();
-                        api.addLog("REORDERED", { from: oldStateIndex, to: newStateIndex });
+                    if (JSON.stringify(state.postIts) !== JSON.stringify(newPostItsState)) {
+                        state.postIts = newPostItsState;
+                        await api.saveState();
+                        api.addLog("REORDERED");
                         helpers.triggerHapticFeedback('medium');
                     }
-                    
+
                     if (state.drag.placeholder && state.drag.placeholder.parentNode) {
                        state.drag.placeholder.parentNode.replaceChild(target, state.drag.placeholder);
                     }
