@@ -114,19 +114,19 @@
             transform: scale(1.02);
             box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
         }
-        
+
         .post-it.dragging {
             position: absolute;
             opacity: 0.95;
             box-shadow: 0 15px 25px rgba(0, 0, 0, 0.3);
             z-index: 1000;
             cursor: grabbing;
-            transition: none; 
-            pointer-events: none; 
+            transition: none;
+            pointer-events: none;
         }
 
         .post-it.drag-over {
-             opacity: 0.5;
+            opacity: 0.5;
         }
 
         .post-it-placeholder {
@@ -738,16 +738,16 @@
                     startY: 0,
                     lastX: 0,
                     lastY: 0,
-                    isSwiping: false, 
-                    isReordering: false, 
+                    isSwiping: false,
+                    isReordering: false,
                     isLongPress: false,
                     longPressTimer: null,
                     didMove: false,
-                    placeholder: null, 
+                    placeholder: null,
                     scrollInterval: null,
                     grabOffsetX: 0,
                     grabOffsetY: 0,
-                    initialWidth: 0, 
+                    initialWidth: 0,
                     initialHeight: 0,
                     angle: 0,
                     angularVelocity: 0,
@@ -1647,7 +1647,7 @@
                     document.querySelectorAll('.post-it-controls.visible').forEach(c => c.classList.remove('visible'));
                 }
             });
-            
+
             // (물리) 애니메이션 루프
             function physicsAnimate(timestamp) {
                 if (!state.drag.target || !state.drag.isReordering) {
@@ -1680,7 +1680,7 @@
 
             function startDrag(e, target, clientX, clientY) {
                 if ((e.button && e.button !== 0) || !target || e.target.closest('.post-it-controls, .post-it-more-btn') || state.isModalOpen) return;
-                
+
                 const targetRect = target.getBoundingClientRect();
                 state.drag = {
                     ...state.drag,
@@ -1695,7 +1695,7 @@
                     didMove: false,
                     grabOffsetX: clientX - targetRect.left,
                     grabOffsetY: clientY - targetRect.top,
-                    initialWidth: targetRect.width, 
+                    initialWidth: targetRect.width,
                     initialHeight: targetRect.height,
                     angle: 0,
                     angularVelocity: 0,
@@ -1723,7 +1723,7 @@
                 if (!state.drag.didMove && (Math.abs(deltaX) > MOVE_THRESHOLD || Math.abs(deltaY) > MOVE_THRESHOLD)) {
                     state.drag.didMove = true;
                     clearTimeout(state.drag.longPressTimer);
-                    
+
                     const VERTICAL_BIAS = 1.5;
                     if (Math.abs(deltaX) > Math.abs(deltaY) * VERTICAL_BIAS) {
                         state.drag.isSwiping = true;
@@ -1732,7 +1732,7 @@
                         state.drag.isReordering = true;
                         const target = state.drag.target;
                         target.style.transformOrigin = `${state.drag.grabOffsetX}px ${state.drag.grabOffsetY}px`;
-                        
+
                         target.style.width = `${state.drag.initialWidth}px`;
                         target.style.height = `${state.drag.initialHeight}px`;
 
@@ -1740,15 +1740,15 @@
                         placeholder.className = 'post-it-placeholder';
                         placeholder.style.height = `${state.drag.initialHeight}px`;
                         state.drag.placeholder = placeholder;
-                        const nextSibling = target.nextSibling; 
+                        const nextSibling = target.nextSibling;
 
                         animatePostItShift(() => {
                             dom.postItContainer.insertBefore(placeholder, nextSibling);
                             target.classList.add('dragging');
                             target.style.left = `${clientX - state.drag.grabOffsetX}px`;
-                            target.style.top = `${clientY - state.drag.grabOffsetY}px`;
+                            target.style.top = `${clientY - state.drag.grabOffsetY + window.scrollY}px`;
                         });
-                        
+
                         document.querySelectorAll('#post-it-container .post-it:not(.dragging)').forEach(p => p.classList.add('drag-over'));
 
                         // (물리) 애니메이션 루프 시작
@@ -1761,16 +1761,16 @@
                 }
 
                 if (state.drag.didMove) {
-                    if(e.cancelable) e.preventDefault();
+                    if (e.cancelable) e.preventDefault();
                     if (state.drag.isSwiping) {
                         state.drag.target.style.transform = `translateX(${deltaX}px)`;
                     } else if (state.drag.isReordering) {
                         const newLeft = clientX - state.drag.grabOffsetX;
-                        const newTop = clientY - state.drag.grabOffsetY;
-                        
+                        const newTop = clientY - state.drag.grabOffsetY + window.scrollY;
+
                         state.drag.target.style.left = `${newLeft}px`;
                         state.drag.target.style.top = `${newTop}px`;
-                        
+
                         // (물리) 드래그 속도에 따라 목표 각도 설정 (민감도 상향)
                         const moveX = clientX - state.drag.lastX;
                         const moveY = clientY - state.drag.lastY;
@@ -1778,9 +1778,9 @@
                         const targetWidth = state.drag.target.offsetWidth;
                         const normalizedGrabX = (state.drag.grabOffsetX / targetWidth) - 0.5;
                         const angleFromX = moveX * 1.5;
-                        const angleFromY = moveY * normalizedGrabX * 4; 
+                        const angleFromY = moveY * normalizedGrabX * 4;
                         const combinedAngle = angleFromX + angleFromY;
-                        const maxAngle = 30; 
+                        const maxAngle = 30;
                         state.drag.targetAngle = Math.max(-maxAngle, Math.min(maxAngle, combinedAngle));
 
                         state.drag.lastX = clientX;
@@ -1788,17 +1788,17 @@
 
                         const overElement = getDragOverElement(clientY);
                         if (overElement && overElement !== state.drag.placeholder) {
-                           const rect = overElement.getBoundingClientRect();
-                           const isAfter = clientY > rect.top + rect.height / 2;
-                           const targetNode = isAfter ? overElement.nextSibling : overElement;
-                           
-                           if (state.drag.placeholder.nextSibling !== targetNode) {
-                               animatePostItShift(() => {
-                                   dom.postItContainer.insertBefore(state.drag.placeholder, targetNode);
-                               });
-                           }
+                            const rect = overElement.getBoundingClientRect();
+                            const isAfter = clientY > rect.top + rect.height / 2;
+                            const targetNode = isAfter ? overElement.nextSibling : overElement;
+
+                            if (state.drag.placeholder.nextSibling !== targetNode) {
+                                animatePostItShift(() => {
+                                    dom.postItContainer.insertBefore(state.drag.placeholder, targetNode);
+                                });
+                            }
                         } else if (!overElement) {
-                            if (state.drag.placeholder.nextSibling) { 
+                            if (state.drag.placeholder.nextSibling) {
                                 animatePostItShift(() => {
                                     dom.postItContainer.appendChild(state.drag.placeholder);
                                 });
@@ -1808,7 +1808,7 @@
                     }
                 }
             }
-            
+
             function animatePostItShift(moveAction) {
                 const itemsToAnimate = [...dom.postItContainer.querySelectorAll('.post-it:not(.dragging)')];
                 const firstPositions = new Map();
@@ -1816,7 +1816,7 @@
                     firstPositions.set(item, item.getBoundingClientRect());
                 });
 
-                moveAction(); 
+                moveAction();
 
                 itemsToAnimate.forEach(item => {
                     const lastPos = item.getBoundingClientRect();
@@ -1827,7 +1827,7 @@
                     if (deltaY !== 0 || deltaX !== 0) {
                         item.style.transition = 'none';
                         item.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
-                        
+
                         requestAnimationFrame(() => {
                             item.style.transition = 'transform 0.2s ease-out';
                             item.style.transform = '';
@@ -1881,7 +1881,7 @@
                     const newIdOrderForState = currentDomIds.reverse();
                     const postItsMap = new Map(state.postIts.map(p => [p.id, p]));
                     const newPostItsState = newIdOrderForState.map(id => postItsMap.get(id));
-                    
+
                     if (JSON.stringify(state.postIts) !== JSON.stringify(newPostItsState)) {
                         state.postIts = newPostItsState;
                         await api.saveState();
@@ -1890,9 +1890,9 @@
                     }
 
                     if (state.drag.placeholder && state.drag.placeholder.parentNode) {
-                       state.drag.placeholder.parentNode.replaceChild(target, state.drag.placeholder);
+                        state.drag.placeholder.parentNode.replaceChild(target, state.drag.placeholder);
                     }
-                    
+
                     target.classList.remove('dragging');
                     target.classList.add('returning');
                     target.style.position = '';
@@ -1900,7 +1900,7 @@
                     target.style.left = '';
                     target.style.transform = '';
                     target.style.transformOrigin = '';
-                    
+
                     target.addEventListener('transitionend', () => {
                         target.classList.remove('returning');
                     }, { once: true });
@@ -1922,7 +1922,7 @@
                     state.drag.target.style.position = '';
                     state.drag.target.style.top = '';
                     state.drag.target.style.left = '';
-                    state.drag.target.style.width = ''; 
+                    state.drag.target.style.width = '';
                     state.drag.target.style.height = '';
                     state.drag.target.style.transform = '';
                     state.drag.target.style.transformOrigin = '';
@@ -1935,7 +1935,7 @@
                 }
                 clearInterval(state.drag.scrollInterval);
                 document.querySelectorAll('#post-it-container .post-it.drag-over').forEach(p => p.classList.remove('drag-over'));
-                
+
                 state.drag = {
                     target: null, startX: 0, startY: 0, lastX: 0, lastY: 0,
                     isSwiping: false, isReordering: false, isLongPress: false,
@@ -1958,7 +1958,7 @@
                     }
                 }, { offset: Number.NEGATIVE_INFINITY }).element;
             }
-            
+
             function handleAutoScroll(clientY) {
                 const SCROLL_AREA = 60;
                 const SCROLL_SPEED = 10;
@@ -2065,7 +2065,7 @@
             // 전역 터치 이동 이벤트 리스너 (새로고침 방지용)
             let initialTouchY = 0;
             document.addEventListener('touchstart', e => {
-                 if (e.touches.length === 1) {
+                if (e.touches.length === 1) {
                     initialTouchY = e.touches[0].clientY;
                 }
             }, { passive: true });
