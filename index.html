@@ -1577,11 +1577,15 @@
                     pastedData = pastedData.replace(/[\r\n]/g, "");
                 }
                 e.preventDefault();
-                const start = dom.textInput.selectionStart;
-                const end = dom.textInput.selectionEnd;
-                dom.textInput.value = dom.textInput.value.substring(0, start) + pastedData + dom.textInput.value.substring(end);
-                handlers.onTextInput();
-                dom.textInput.selectionStart = dom.textInput.selectionEnd = start + pastedData.length;
+                if (document.queryCommandSupported('insertText')) {
+                    document.execCommand('insertText', false, pastedData);
+                } else {
+                    const start = dom.textInput.selectionStart;
+                    const end = dom.textInput.selectionEnd;
+                    dom.textInput.value = dom.textInput.value.substring(0, start) + pastedData + dom.textInput.value.substring(end);
+                    dom.textInput.selectionStart = dom.textInput.selectionEnd = start + pastedData.length;
+                    handlers.onTextInput();
+                }
             });
 
             dom.textInput.addEventListener('keydown', e => {
