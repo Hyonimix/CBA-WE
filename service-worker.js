@@ -15,8 +15,7 @@ const urlsToCache = [
     'https://cdn.jsdelivr.net/npm/sweetalert2@11',
     'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css',
     'https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap',
-    'icons/icon-192x192.png',
-    'icons/icon-512x512.png'
+    'icons/icon-192x192.png'
 ];
 
 self.addEventListener('install', event => {

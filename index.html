@@ -36,13 +36,12 @@
         }
 
         html {
-            overflow-x: hidden;
             scrollbar-gutter: stable;
             overscroll-behavior-y: contain;
         }
 
         body {
-            width: 100vw;
+            width: 100%;
             overflow-x: hidden;
             background-color: var(--bg-color);
             color: var(--text-color);
@@ -668,10 +667,10 @@
 
     <div class="container mt-3">
         <div class="search-container">
-            <input type="search" id="search-input" class="form-control mb-2" placeholder="ポスト内容検索…">
+            <input type="search" id="search-input" class="form-control mb-2" placeholder="ポスト内容検索…" autocomplete="off" data-lpignore="true" data-1p-ignore="true">
             <span id="search-clear-btn"><i class="bi bi-x-circle-fill"></i></span>
         </div>
-        <textarea id="text-input" class="form-control" rows="4" style="width: 100%;" aria-label="新規ポストの内容入力"></textarea>
+        <textarea id="text-input" class="form-control" rows="4" style="width: 100%;" aria-label="新規ポストの内容入力" autocomplete="off" data-lpignore="true" data-1p-ignore="true"></textarea>
         <div class="text-center">
             <button id="delete-btn" class="btn btn-primary mt-2">クリア</button>
             <button id="save-btn" class="btn btn-success mt-2">保存</button>
@@ -1336,6 +1335,11 @@
                 onTextInput() {
                     if (state.isComposing) return;
                     const text = dom.textInput.value;
+                    
+                    if (text !== '') {
+                        state.undoableClearText = null;
+                    }
+
                     let styleClass = '';
                     if (state.isComposing) styleClass = 'composing';
                     else if (text === '') styleClass = 'empty';
@@ -1406,9 +1410,12 @@
                     return Swal.fire({ title: "情報", text: "バックアップするデータがありません。", icon: "info", customClass: { popup: 'swal2-popup' } });
                 }
 
+                const autofillTrap = '<div style="position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0;"><input type="text" autocomplete="username" tabindex="-1"><input type="password" autocomplete="current-password" tabindex="-1"></div>';
+
                 await Swal.fire({
                     title: 'バックアップ用パスワードの設定',
-                    html: 'データを保護するための6桁の数字のパスワードを入力してください。<br><span class="swal-key-warning">このパスワードは復元時に必須です。忘れないように注意してください。</span>' +
+                    html: autofillTrap +
+                        'データを保護するための6桁の数字のパスワードを入力してください。<br><span class="swal-key-warning">このパスワードは復元時に必須です。忘れないように注意してください。</span>' +
                         '<br><br><input type="checkbox" id="swal-ack-checkbox"><label for="swal-ack-checkbox"> パスワードは回復できないことを理解しました。</label>',
                     input: 'password',
                     inputPlaceholder: '6桁の数字',
@@ -1417,7 +1424,8 @@
                         autocapitalize: 'off',
                         autocorrect: 'off',
                         inputmode: 'numeric',
-                        pattern: '\\d{6}'
+                        pattern: '\\d{6}',
+                        autocomplete: 'new-password'
                     },
                     showCancelButton: true,
                     confirmButtonText: 'バックアップ開始',
@@ -1498,10 +1506,12 @@
                 }).then(async (result) => {
                     if (result.isConfirmed) {
                         const backupFile = result.value;
+                        const autofillTrap = '<div style="position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0;"><input type="text" autocomplete="username" tabindex="-1"><input type="password" autocomplete="current-password" tabindex="-1"></div>';
 
                         const { value: password } = await Swal.fire({
                             title: 'パスワードの入力',
-                            html: 'バックアップ作成時に設定した6桁の数字のパスワードを入力してください。',
+                            html: autofillTrap +
+                                  'バックアップ作成時に設定した6桁の数字のパスワードを入力してください。',
                             input: 'password',
                             inputPlaceholder: '6桁の数字',
                             inputAttributes: {
@@ -1509,7 +1519,8 @@
                                 autocapitalize: 'off',
                                 autocorrect: 'off',
                                 inputmode: 'numeric',
-                                pattern: '\\d{6}'
+                                pattern: '\\d{6}',
+                                autocomplete: 'new-password'
                             },
                             showCancelButton: true,
                             confirmButtonText: '復元',
@@ -1572,19 +1583,20 @@
                 state.pastedByUser = true;
                 clearTimeout(state.typingTimer);
                 state.lastCopiedText = '';
+                
                 let pastedData = (e.clipboardData || window.clipboardData).getData('text');
-                if (!state.settings.isNewlineEnabled) {
+                
+                if (!state.settings.isNewlineEnabled && /[\r\n]/.test(pastedData)) {
+                    e.preventDefault();
                     pastedData = pastedData.replace(/[\r\n]/g, "");
-                }
-                e.preventDefault();
-                if (document.queryCommandSupported('insertText')) {
-                    document.execCommand('insertText', false, pastedData);
-                } else {
-                    const start = dom.textInput.selectionStart;
-                    const end = dom.textInput.selectionEnd;
-                    dom.textInput.value = dom.textInput.value.substring(0, start) + pastedData + dom.textInput.value.substring(end);
-                    dom.textInput.selectionStart = dom.textInput.selectionEnd = start + pastedData.length;
-                    handlers.onTextInput();
+                    if (document.queryCommandSupported('insertText')) {
+                        document.execCommand('insertText', false, pastedData);
+                    } else {
+                        const start = dom.textInput.selectionStart;
+                        const end = dom.textInput.selectionEnd;
+                        dom.textInput.setRangeText(pastedData, start, end, 'end');
+                        handlers.onTextInput();
+                    }
                 }
             });
 
