@@ -686,7 +686,7 @@
     <div id="toast-container"></div>
     <footer class="container mt-4 text-muted">Copyright © 2025 D5 Kan. All Rights Reserved.<br><a
             class="text-muted text-decoration-none font-weight-bold" href="https://github.com/Hyonimix/CBA-WE"
-            target="_blank">github.com/Hyonimix</a></footer>
+            target="_blank">github.com/Hyonimix</a><br><a href="#" id="license-info-btn" class="text-muted text-decoration-none" style="font-size: 12px; margin-top: 5px; display: inline-block; text-decoration: underline !important;">Open Source Licenses</a></footer>
 
     <button id="scroll-to-top-btn" title="トップへ移動" aria-label="ページのトップへ移動">
         <i class="bi bi-arrow-up-circle-fill"></i>
@@ -719,7 +719,8 @@
                 postItContainer: document.getElementById('post-it-container'),
                 toastContainer: document.getElementById('toast-container'),
                 footer: document.querySelector('footer'),
-                scrollToTopBtn: document.getElementById('scroll-to-top-btn')
+                scrollToTopBtn: document.getElementById('scroll-to-top-btn'),
+                licenseBtn: document.getElementById('license-info-btn')
             };
 
             // 앱 상태 관리
@@ -2109,6 +2110,28 @@
                     }
                 }
             }, { passive: false });
+
+            // 오픈 소스 라이선스 정보 모달
+            dom.licenseBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                Swal.fire({
+                    title: 'Open Source Licenses',
+                    html: `
+                        <div style="text-align: left; font-size: 14px; max-height: 400px; overflow-y: auto; padding: 10px; background-color: var(--surface-color); border: 1px solid #777; border-radius: 4px;">
+                            <h5 style="color: white; margin-bottom: 5px;">Bootstrap</h5>
+                            <p style="margin-bottom: 15px;">The MIT License (MIT)<br>Copyright (c) 2011-2020 Twitter, Inc.<br>Copyright (c) 2011-2020 The Bootstrap Authors</p>
+                            <h5 style="color: white; margin-bottom: 5px;">SweetAlert2</h5>
+                            <p style="margin-bottom: 15px;">The MIT License (MIT)<br>Copyright (c) 2014-present Limon Monte and other contributors</p>
+                            <h5 style="color: white; margin-bottom: 5px;">Bootstrap Icons</h5>
+                            <p style="margin-bottom: 15px;">The MIT License (MIT)<br>Copyright (c) 2019-2024 The Bootstrap Authors</p>
+                            <h5 style="color: white; margin-bottom: 5px;">Noto Sans JP</h5>
+                            <p style="margin-bottom: 0;">SIL Open Font License, Version 1.1<br>Copyright 2020 The Noto Project Authors (https://github.com/notofonts/japanese)</p>
+                        </div>
+                    `,
+                    confirmButtonText: '閉じる',
+                    customClass: { popup: 'swal2-popup' }
+                });
+            });
 
             initialize();
 
