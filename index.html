@@ -725,6 +725,7 @@
                 typingTimer: null,
                 isComposing: false,
                 pastedByUser: false,
+                cutByUser: false,
                 undoableClearText: null,
                 lastDeletedAll: null,
                 lastDeletedItem: null,
@@ -1348,12 +1349,13 @@
                     ui.updateTextInputStyle(styleClass);
                     ui.autoResizeTextarea();
                     clearTimeout(state.typingTimer);
-                    if (state.settings.isAutoCopyEnabled && !state.pastedByUser && text) {
+                    if (state.settings.isAutoCopyEnabled && !state.pastedByUser && !state.cutByUser && text) {
                         state.typingTimer = setTimeout(() => {
                             if (!state.isComposing) api.copyToClipboard(text);
                         }, /iPhone|Android/i.test(navigator.userAgent) ? 2500 : 500);
                     }
                     state.pastedByUser = false;
+                    state.cutByUser = false;
                 }
             };
 
@@ -1578,6 +1580,11 @@
 
             // 텍스트 입력 영역 이벤트 리스너
             dom.textInput.addEventListener('input', handlers.onTextInput);
+
+            dom.textInput.addEventListener('cut', () => {
+                state.cutByUser = true;
+                clearTimeout(state.typingTimer);
+            });
 
             dom.textInput.addEventListener('paste', e => {
                 state.pastedByUser = true;
