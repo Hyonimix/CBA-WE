@@ -33,6 +33,7 @@
             --border-color-pasted: red;
             --border-color-duplicate: red;
             --border-color-copied: limegreen;
+            --border-color-cut: red;
         }
 
         html {
@@ -439,6 +440,10 @@
 
         #text-input.copied {
             border-color: var(--border-color-copied);
+        }
+
+        #text-input.cut {
+            border-color: var(--border-color-cut);
         }
 
         .cbassist-header {
@@ -1146,7 +1151,7 @@
                 },
                 // 텍스트 입력창 스타일 업데이트
                 updateTextInputStyle: (styleClass = '') => {
-                    dom.textInput.classList.remove('empty', 'pasted', 'duplicate', 'copied', 'composing');
+                    dom.textInput.classList.remove('empty', 'pasted', 'duplicate', 'copied', 'composing', 'cut');
                     if (styleClass) dom.textInput.classList.add(styleClass);
                 },
                 // 텍스트 입력창 높이 자동 조절
@@ -1343,9 +1348,11 @@
 
                     let styleClass = '';
                     if (state.isComposing) styleClass = 'composing';
+                    else if (state.cutByUser) styleClass = 'cut';
                     else if (text === '') styleClass = 'empty';
                     else if (state.pastedByUser) styleClass = 'pasted';
                     else if (text === state.lastCopiedText) styleClass = 'duplicate';
+                    
                     ui.updateTextInputStyle(styleClass);
                     ui.autoResizeTextarea();
                     clearTimeout(state.typingTimer);
